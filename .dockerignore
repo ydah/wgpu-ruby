@@ -1,0 +1,13 @@
+.git
+.github
+.bundle
+.claude
+.ruby-lsp
+.rspec_status
+*.gem
+tmp
+coverage
+doc
+pkg
+CLAUDE.md
+webgpu-ruby-design.md

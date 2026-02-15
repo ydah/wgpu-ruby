@@ -1,0 +1,25 @@
+/.bundle/
+/.yardoc
+/_yardoc/
+/coverage/
+/doc/
+/pkg/
+/spec/reports/
+/tmp/
+
+# rspec failure tracking
+.rspec_status
+
+# Bundler
+/.bundle/
+Gemfile.lock
+
+# Built gem
+*.gem
+
+# IDE / Editor
+/.ruby-lsp/
+/.claude/
+
+# macOS
+.DS_Store

@@ -1,0 +1,221 @@
+# frozen_string_literal: true
+
+module WGPU
+  class Surface
+    attr_reader :handle
+
+    def self.from_metal_layer(instance, layer)
+      source = Native::SurfaceSourceMetalLayer.new
+      source[:chain][:next] = nil
+      source[:chain][:s_type] = Native::SType[:surface_source_metal_layer]
+      source[:layer] = layer
+
+      desc = Native::SurfaceDescriptor.new
+      desc[:next_in_chain] = source.to_ptr
+      desc[:label][:data] = nil
+      desc[:label][:length] = 0
+
+      handle = Native.wgpuInstanceCreateSurface(instance.handle, desc)
+      raise SurfaceError, "Failed to create surface from Metal layer" if handle.null?
+
+      new(handle, instance)
+    end
+
+    def self.from_windows_hwnd(instance, hinstance, hwnd)
+      source = Native::SurfaceSourceWindowsHWND.new
+      source[:chain][:next] = nil
+      source[:chain][:s_type] = Native::SType[:surface_source_windows_hwnd]
+      source[:hinstance] = hinstance
+      source[:hwnd] = hwnd
+
+      desc = Native::SurfaceDescriptor.new
+      desc[:next_in_chain] = source.to_ptr
+      desc[:label][:data] = nil
+      desc[:label][:length] = 0
+
+      handle = Native.wgpuInstanceCreateSurface(instance.handle, desc)
+      raise SurfaceError, "Failed to create surface from Windows HWND" if handle.null?
+
+      new(handle, instance)
+    end
+
+    def self.from_xlib_window(instance, display, window)
+      source = Native::SurfaceSourceXlibWindow.new
+      source[:chain][:next] = nil
+      source[:chain][:s_type] = Native::SType[:surface_source_xlib_window]
+      source[:display] = display
+      source[:window] = window
+
+      desc = Native::SurfaceDescriptor.new
+      desc[:next_in_chain] = source.to_ptr
+      desc[:label][:data] = nil
+      desc[:label][:length] = 0
+
+      handle = Native.wgpuInstanceCreateSurface(instance.handle, desc)
+      raise SurfaceError, "Failed to create surface from Xlib window" if handle.null?
+
+      new(handle, instance)
+    end
+
+    def self.from_wayland_surface(instance, display, surface)
+      source = Native::SurfaceSourceWaylandSurface.new
+      source[:chain][:next] = nil
+      source[:chain][:s_type] = Native::SType[:surface_source_wayland_surface]
+      source[:display] = display
+      source[:surface] = surface
+
+      desc = Native::SurfaceDescriptor.new
+      desc[:next_in_chain] = source.to_ptr
+      desc[:label][:data] = nil
+      desc[:label][:length] = 0
+
+      handle = Native.wgpuInstanceCreateSurface(instance.handle, desc)
+      raise SurfaceError, "Failed to create surface from Wayland surface" if handle.null?
+
+      new(handle, instance)
+    end
+
+    def initialize(handle, instance)
+      @handle = handle
+      @instance = instance
+      @configured = false
+      @config = nil
+    end
+
+    def configure(device:, format:, usage: :render_attachment, width:, height:, present_mode: :fifo, alpha_mode: :auto, view_formats: [])
+      config = Native::SurfaceConfiguration.new
+      config[:next_in_chain] = nil
+      config[:device] = device.handle
+      config[:format] = format
+      config[:usage] = normalize_usage(usage)
+      config[:width] = width
+      config[:height] = height
+      config[:view_format_count] = view_formats.size
+      if view_formats.empty?
+        @view_formats_ptr = nil
+        config[:view_formats] = nil
+      else
+        format_values = view_formats.map do |vf|
+          vf.is_a?(Integer) ? vf : Native::TextureFormat[vf]
+        end
+        @view_formats_ptr = FFI::MemoryPointer.new(:uint32, format_values.size)
+        @view_formats_ptr.write_array_of_uint32(format_values)
+        config[:view_formats] = @view_formats_ptr
+      end
+      config[:alpha_mode] = Native::CompositeAlphaMode[alpha_mode]
+      config[:present_mode] = Native::PresentMode[present_mode]
+
+      Native.wgpuSurfaceConfigure(@handle, config)
+      @configured = true
+      @device = device
+      @config = {
+        device: device,
+        format: format,
+        usage: usage,
+        width: width,
+        height: height,
+        present_mode: present_mode,
+        alpha_mode: alpha_mode,
+        view_formats: view_formats
+      }
+    end
+
+    def unconfigure
+      Native.wgpuSurfaceUnconfigure(@handle)
+      @configured = false
+      @config = nil
+    end
+
+    def current_texture
+      raise SurfaceError, "Surface is not configured" unless @configured
+
+      surface_texture = Native::SurfaceTexture.new
+      Native.wgpuSurfaceGetCurrentTexture(@handle, surface_texture)
+
+      status = Native::SurfaceGetCurrentTextureStatus[surface_texture[:status]]
+      unless status == :success_optimal || status == :success_suboptimal
+        raise SurfaceError, "Failed to get current texture: #{status}"
+      end
+
+      texture_ptr = surface_texture[:texture]
+      if texture_ptr.nil? || texture_ptr.null?
+        raise SurfaceError, "Surface returned null texture"
+      end
+
+      Texture.from_handle(texture_ptr)
+    end
+
+    def get_current_texture
+      current_texture
+    end
+
+    def present
+      Native.wgpuSurfacePresent(@handle)
+    end
+
+    def get_configuration
+      @config
+    end
+
+    def get_preferred_format(adapter)
+      caps = capabilities(adapter)
+      caps[:formats].first || :bgra8_unorm
+    end
+
+    def capabilities(adapter)
+      caps = Native::SurfaceCapabilities.new
+      Native.wgpuSurfaceGetCapabilities(@handle, adapter.handle, caps)
+
+      formats = []
+      if caps[:format_count] > 0 && !caps[:formats].null?
+        formats = caps[:formats].read_array_of_uint32(caps[:format_count]).map do |f|
+          Native::TextureFormat[f]
+        end
+      end
+
+      present_modes = []
+      if caps[:present_mode_count] > 0 && !caps[:present_modes].null?
+        present_modes = caps[:present_modes].read_array_of_uint32(caps[:present_mode_count]).map do |m|
+          Native::PresentMode[m]
+        end
+      end
+
+      alpha_modes = []
+      if caps[:alpha_mode_count] > 0 && !caps[:alpha_modes].null?
+        alpha_modes = caps[:alpha_modes].read_array_of_uint32(caps[:alpha_mode_count]).map do |a|
+          Native::CompositeAlphaMode[a]
+        end
+      end
+
+      {
+        formats: formats,
+        present_modes: present_modes,
+        alpha_modes: alpha_modes,
+        usages: caps[:usages]
+      }
+    ensure
+      Native.wgpuSurfaceCapabilitiesFreeMembers(caps) if caps
+    end
+
+    def release
+      return if @handle.null?
+      Native.wgpuSurfaceRelease(@handle)
+      @handle = FFI::Pointer::NULL
+    end
+
+    private
+
+    def normalize_usage(usage)
+      case usage
+      when Integer
+        usage
+      when Symbol
+        Native::TextureUsage[usage]
+      when Array
+        usage.reduce(0) { |acc, u| acc | Native::TextureUsage[u] }
+      else
+        raise ArgumentError, "Invalid usage: #{usage}"
+      end
+    end
+  end
+end
