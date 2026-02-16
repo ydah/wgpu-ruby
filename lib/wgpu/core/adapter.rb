@@ -2,13 +2,12 @@
 
 module WGPU
   class Adapter
-    attr_reader :handle
+    attr_reader :handle, :instance
 
-    CALLBACK_MODE_WAIT_ANY_ONLY = 1
-
-    def self.from_handle(handle)
+    def self.from_handle(handle, instance: nil)
       adapter = allocate
       adapter.instance_variable_set(:@handle, handle)
+      adapter.instance_variable_set(:@instance, instance)
       adapter
     end
 
@@ -17,13 +16,14 @@ module WGPU
       status_holder = { value: nil, message: nil }
 
       callback = FFI::Function.new(
-        :void, [:uint32, :pointer, Native::StringView.by_value, :pointer]
-      ) do |status, adapter, message, _userdata|
+        :void, [:uint32, :pointer, Native::StringView.by_value, :pointer, :pointer]
+      ) do |status, adapter, message, _userdata1, _userdata2|
         status_holder[:value] = Native::RequestAdapterStatus[status]
         if message[:data] && !message[:data].null? && message[:length] > 0
           status_holder[:message] = message[:data].read_string(message[:length])
         end
         adapter_ptr.write_pointer(adapter)
+        status_holder[:done] = true
       end
 
       options = Native::RequestAdapterOptions.new
@@ -36,11 +36,14 @@ module WGPU
 
       callback_info = Native::RequestAdapterCallbackInfo.new
       callback_info[:next_in_chain] = nil
-      callback_info[:mode] = CALLBACK_MODE_WAIT_ANY_ONLY
+      callback_info[:mode] = AsyncWaiter.callback_mode(instance: instance)
       callback_info[:callback] = callback
-      callback_info[:userdata] = nil
+      callback_info[:userdata1] = nil
+      callback_info[:userdata2] = nil
 
-      Native.wgpuInstanceRequestAdapter(instance.handle, options, callback_info)
+      status_holder[:done] = false
+      future = Native.wgpuInstanceRequestAdapter(instance.handle, options, callback_info)
+      AsyncWaiter.wait(status_holder: status_holder, instance: instance, future: future)
 
       handle = adapter_ptr.read_pointer
       if handle.null? || status_holder[:value] != :success
@@ -48,11 +51,12 @@ module WGPU
         raise AdapterError, "Failed to request adapter: #{msg}"
       end
 
-      new(handle)
+      new(handle, instance: instance)
     end
 
-    def initialize(handle)
+    def initialize(handle, instance: nil)
       @handle = handle
+      @instance = instance
     end
 
     def request_device(label: nil, required_features: [], required_limits: nil)

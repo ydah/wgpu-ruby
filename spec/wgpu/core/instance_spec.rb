@@ -24,6 +24,7 @@ RSpec.describe WGPU::Instance do
       adapter = instance.request_adapter
       expect(adapter).to be_a(WGPU::Adapter)
       expect(adapter.handle).not_to be_null
+      expect(adapter.instance).to eq(instance)
       adapter.release
       instance.release
     end

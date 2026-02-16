@@ -53,7 +53,7 @@ module WGPU
       Native.wgpuInstanceEnumerateAdapters(@handle, options, adapters_ptr)
 
       adapters_ptr.read_array_of_pointer(count).map do |ptr|
-        Adapter.from_handle(ptr)
+        Adapter.from_handle(ptr, instance: self)
       end
     end
 

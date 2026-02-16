@@ -4,6 +4,7 @@ require_relative "wgpu/version"
 require_relative "wgpu/error"
 require_relative "wgpu/native/loader"
 require_relative "wgpu/async_task"
+require_relative "wgpu/core/async_waiter"
 
 require_relative "wgpu/resources/buffer"
 require_relative "wgpu/resources/texture"

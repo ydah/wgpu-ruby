@@ -4,21 +4,21 @@ module WGPU
   class Device
     attr_reader :handle, :queue, :adapter
 
-    CALLBACK_MODE_WAIT_ANY_ONLY = 1
     LIMIT_FIELDS = Native::Limits.members.freeze
 
     def self.request(adapter, label: nil, required_features: [], required_limits: nil)
       device_ptr = FFI::MemoryPointer.new(:pointer)
-      status_holder = { value: nil, message: nil }
+      status_holder = { done: false, value: nil, message: nil }
 
       callback = FFI::Function.new(
-        :void, [:uint32, :pointer, Native::StringView.by_value, :pointer]
-      ) do |status, device, message, _userdata|
+        :void, [:uint32, :pointer, Native::StringView.by_value, :pointer, :pointer]
+      ) do |status, device, message, _userdata1, _userdata2|
         status_holder[:value] = Native::RequestDeviceStatus[status]
         if message[:data] && !message[:data].null? && message[:length] > 0
           status_holder[:message] = message[:data].read_string(message[:length])
         end
         device_ptr.write_pointer(device)
+        status_holder[:done] = true
       end
 
       queue_desc = Native::QueueDescriptor.new
@@ -30,12 +30,14 @@ module WGPU
       device_lost_info[:next_in_chain] = nil
       device_lost_info[:mode] = 0
       device_lost_info[:callback] = nil
-      device_lost_info[:userdata] = nil
+      device_lost_info[:userdata1] = nil
+      device_lost_info[:userdata2] = nil
 
       error_info = Native::UncapturedErrorCallbackInfo.new
       error_info[:next_in_chain] = nil
       error_info[:callback] = nil
-      error_info[:userdata] = nil
+      error_info[:userdata1] = nil
+      error_info[:userdata2] = nil
 
       desc = Native::DeviceDescriptor.new
       desc[:next_in_chain] = nil
@@ -67,11 +69,13 @@ module WGPU
 
       callback_info = Native::RequestDeviceCallbackInfo.new
       callback_info[:next_in_chain] = nil
-      callback_info[:mode] = CALLBACK_MODE_WAIT_ANY_ONLY
+      callback_info[:mode] = AsyncWaiter.callback_mode(instance: adapter.instance)
       callback_info[:callback] = callback
-      callback_info[:userdata] = nil
+      callback_info[:userdata1] = nil
+      callback_info[:userdata2] = nil
 
-      Native.wgpuAdapterRequestDevice(adapter.handle, desc, callback_info)
+      future = Native.wgpuAdapterRequestDevice(adapter.handle, desc, callback_info)
+      AsyncWaiter.wait(status_holder: status_holder, instance: adapter.instance, future: future)
 
       handle = device_ptr.read_pointer
       if handle.null? || status_holder[:value] != :success
@@ -235,7 +239,12 @@ module WGPU
     end
 
     def poll(wait: false)
-      Native.wgpuDevicePoll(@handle, wait ? 1 : 0, nil)
+      if Native.device_poll_available?
+        Native.wgpuDevicePoll(@handle, wait ? 1 : 0, nil)
+      else
+        @adapter&.instance&.process_events
+        0
+      end
     end
 
     def push_error_scope(filter = :validation)
@@ -243,11 +252,13 @@ module WGPU
     end
 
     def pop_error_scope
-      error_holder = { type: nil, message: nil }
+      error_holder = { done: false, status: nil, type: nil, message: nil }
 
       callback = FFI::Function.new(
         :void, [:uint32, :uint32, Native::StringView.by_value, :pointer, :pointer]
-      ) do |_status, error_type, message, _userdata1, _userdata2|
+      ) do |status, error_type, message, _userdata1, _userdata2|
+        error_holder[:done] = true
+        error_holder[:status] = Native::PopErrorScopeStatus[status]
         error_holder[:type] = Native::ErrorType[error_type]
         if message[:data] && !message[:data].null? && message[:length] > 0
           error_holder[:message] = message[:data].read_string(message[:length])
@@ -256,12 +267,13 @@ module WGPU
 
       callback_info = Native::PopErrorScopeCallbackInfo.new
       callback_info[:next_in_chain] = nil
-      callback_info[:mode] = 1
+      callback_info[:mode] = AsyncWaiter.callback_mode(instance: @adapter&.instance)
       callback_info[:callback] = callback
       callback_info[:userdata1] = nil
       callback_info[:userdata2] = nil
 
-      Native.wgpuDevicePopErrorScope(@handle, callback_info)
+      future = Native.wgpuDevicePopErrorScope(@handle, callback_info)
+      AsyncWaiter.wait(status_holder: error_holder, instance: @adapter&.instance, device: self, future: future)
 
       error_holder
     end
