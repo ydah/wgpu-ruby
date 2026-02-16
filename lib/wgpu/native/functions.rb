@@ -9,13 +9,19 @@ module WGPU
                     [:pointer], :void
 
     attach_function :wgpuInstanceRequestAdapter,
-                    [:pointer, RequestAdapterOptions.by_ref, RequestAdapterCallbackInfo.by_value], :pointer
+                    [:pointer, RequestAdapterOptions.by_ref, RequestAdapterCallbackInfo.by_value], Future.by_value
 
     attach_function :wgpuInstanceEnumerateAdapters,
                     [:pointer, :pointer, :pointer], :size_t
 
     attach_function :wgpuInstanceProcessEvents,
                     [:pointer], :void
+
+    begin
+      attach_function :wgpuInstanceWaitAny,
+                      [:pointer, :size_t, :pointer, :uint64], WaitStatus
+    rescue FFI::NotFoundError
+    end
 
     attach_function :wgpuAdapterRelease,
                     [:pointer], :void
@@ -24,7 +30,7 @@ module WGPU
                     [:pointer, AdapterInfo.by_ref], :void
 
     attach_function :wgpuAdapterRequestDevice,
-                    [:pointer, DeviceDescriptor.by_ref, RequestDeviceCallbackInfo.by_value], :pointer
+                    [:pointer, DeviceDescriptor.by_ref, RequestDeviceCallbackInfo.by_value], Future.by_value
 
     attach_function :wgpuAdapterGetFeatures,
                     [:pointer, :pointer], :void
@@ -71,8 +77,11 @@ module WGPU
     attach_function :wgpuDeviceCreateCommandEncoder,
                     [:pointer, CommandEncoderDescriptor.by_ref], :pointer
 
-    attach_function :wgpuDevicePoll,
-                    [:pointer, :uint32, :pointer], :uint32
+    begin
+      attach_function :wgpuDevicePoll,
+                      [:pointer, :uint32, :pointer], :uint32
+    rescue FFI::NotFoundError
+    end
 
     attach_function :wgpuQueueRelease,
                     [:pointer], :void
@@ -81,7 +90,7 @@ module WGPU
                     [:pointer, :size_t, :pointer], :void
 
     attach_function :wgpuQueueOnSubmittedWorkDone,
-                    [:pointer, QueueWorkDoneCallbackInfo.by_value], :pointer
+                    [:pointer, QueueWorkDoneCallbackInfo.by_value], Future.by_value
 
     attach_function :wgpuQueueWriteBuffer,
                     [:pointer, :pointer, :uint64, :pointer, :size_t], :void
@@ -96,7 +105,7 @@ module WGPU
                     [:pointer], :void
 
     attach_function :wgpuBufferMapAsync,
-                    [:pointer, :uint64, :size_t, :size_t, BufferMapCallbackInfo.by_value], :pointer
+                    [:pointer, :uint64, :size_t, :size_t, BufferMapCallbackInfo.by_value], Future.by_value
 
     attach_function :wgpuBufferUnmap,
                     [:pointer], :void
@@ -120,7 +129,7 @@ module WGPU
                     [:pointer], :void
 
     attach_function :wgpuShaderModuleGetCompilationInfo,
-                    [:pointer, CompilationInfoCallbackInfo.by_value], :pointer
+                    [:pointer, CompilationInfoCallbackInfo.by_value], Future.by_value
 
     attach_function :wgpuCommandEncoderRelease,
                     [:pointer], :void
@@ -363,7 +372,7 @@ module WGPU
                     [:pointer, ErrorFilter], :void
 
     attach_function :wgpuDevicePopErrorScope,
-                    [:pointer, PopErrorScopeCallbackInfo.by_value], :pointer
+                    [:pointer, PopErrorScopeCallbackInfo.by_value], Future.by_value
 
     attach_function :wgpuComputePipelineGetBindGroupLayout,
                     [:pointer, :uint32], :pointer

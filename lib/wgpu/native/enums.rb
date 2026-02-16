@@ -50,13 +50,15 @@ module WGPU
       :success, 0x00000001,
       :instance_dropped, 0x00000002,
       :unavailable, 0x00000003,
-      :error, 0x00000004
+      :error, 0x00000004,
+      :unknown, 0x00000005
     )
 
     RequestDeviceStatus = enum(
       :success, 0x00000001,
       :instance_dropped, 0x00000002,
-      :error, 0x00000003
+      :error, 0x00000003,
+      :unknown, 0x00000004
     )
 
     BufferMapState = enum(
@@ -65,11 +67,18 @@ module WGPU
       :mapped, 0x00000003
     )
 
+    CallbackMode = enum(
+      :wait_any_only, 0x00000001,
+      :allow_process_events, 0x00000002,
+      :allow_spontaneous, 0x00000003
+    )
+
     MapAsyncStatus = enum(
       :success, 0x00000001,
       :instance_dropped, 0x00000002,
       :error, 0x00000003,
-      :aborted, 0x00000004
+      :aborted, 0x00000004,
+      :unknown, 0x00000005
     )
 
     BufferUsage = {
@@ -482,8 +491,16 @@ module WGPU
 
     PopErrorScopeStatus = enum(
       :success, 0x00000001,
-      :callback_cancelled, 0x00000002,
-      :error, 0x00000003
+      :instance_dropped, 0x00000002,
+      :empty_stack, 0x00000003
+    )
+
+    WaitStatus = enum(
+      :success, 0x00000001,
+      :timed_out, 0x00000002,
+      :unsupported_timeout, 0x00000003,
+      :unsupported_count, 0x00000004,
+      :unsupported_mixed_sources, 0x00000005
     )
 
     QueueWorkDoneStatus = enum(

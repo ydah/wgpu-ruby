@@ -17,6 +17,15 @@ module WGPU
              :s_type, SType
     end
 
+    class Future < FFI::Struct
+      layout :id, :uint64
+    end
+
+    class FutureWaitInfo < FFI::Struct
+      layout :future, Future.by_value,
+             :completed, :uint32
+    end
+
     class InstanceCapabilities < FFI::Struct
       layout :next_in_chain, :pointer,
              :timed_wait_any_enable, :uint32,
@@ -58,13 +67,15 @@ module WGPU
       layout :next_in_chain, :pointer,
              :mode, :uint32,
              :callback, :pointer,
-             :userdata, :pointer
+             :userdata1, :pointer,
+             :userdata2, :pointer
     end
 
     class UncapturedErrorCallbackInfo < FFI::Struct
       layout :next_in_chain, :pointer,
              :callback, :pointer,
-             :userdata, :pointer
+             :userdata1, :pointer,
+             :userdata2, :pointer
     end
 
     class PopErrorScopeCallbackInfo < FFI::Struct
@@ -355,21 +366,24 @@ module WGPU
       layout :next_in_chain, :pointer,
              :mode, :uint32,
              :callback, :pointer,
-             :userdata, :pointer
+             :userdata1, :pointer,
+             :userdata2, :pointer
     end
 
     class RequestDeviceCallbackInfo < FFI::Struct
       layout :next_in_chain, :pointer,
              :mode, :uint32,
              :callback, :pointer,
-             :userdata, :pointer
+             :userdata1, :pointer,
+             :userdata2, :pointer
     end
 
     class BufferMapCallbackInfo < FFI::Struct
       layout :next_in_chain, :pointer,
              :mode, :uint32,
              :callback, :pointer,
-             :userdata, :pointer
+             :userdata1, :pointer,
+             :userdata2, :pointer
     end
 
     class TextureViewDescriptor < FFI::Struct
