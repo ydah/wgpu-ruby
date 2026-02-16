@@ -35,6 +35,7 @@ module WGPU
 
     def get_compilation_info
       result_holder = { done: false, status: nil, messages: [] }
+      instance = @device.adapter&.instance
 
       callback = FFI::Function.new(
         :void, [:uint32, :pointer, :pointer, :pointer]
@@ -69,17 +70,13 @@ module WGPU
 
       callback_info = Native::CompilationInfoCallbackInfo.new
       callback_info[:next_in_chain] = nil
-      callback_info[:mode] = 1
+      callback_info[:mode] = AsyncWaiter.callback_mode(instance: instance)
       callback_info[:callback] = callback
       callback_info[:userdata1] = nil
       callback_info[:userdata2] = nil
 
-      Native.wgpuShaderModuleGetCompilationInfo(@handle, callback_info)
-
-      until result_holder[:done]
-        Native.wgpuDevicePoll(@device.handle, 0, nil)
-        sleep(0.001)
-      end
+      future = Native.wgpuShaderModuleGetCompilationInfo(@handle, callback_info)
+      AsyncWaiter.wait(status_holder: result_holder, instance: instance, device: @device, future: future)
 
       {
         status: result_holder[:status],

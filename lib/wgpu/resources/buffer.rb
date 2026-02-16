@@ -60,17 +60,17 @@ module WGPU
     end
 
     def map_sync(mode, offset: 0, size: nil)
-      status_holder, callback = begin_map_request(mode, offset: offset, size: size)
-      wait_for_map(status_holder)
+      status_holder, callback, future = begin_map_request(mode, offset: offset, size: size)
+      wait_for_map(status_holder, future)
       finalize_map(status_holder)
     ensure
       @map_callbacks.delete(callback) if callback
     end
 
     def map_async(mode, offset: 0, size: nil)
-      status_holder, callback = begin_map_request(mode, offset: offset, size: size)
+      status_holder, callback, future = begin_map_request(mode, offset: offset, size: size)
       AsyncTask.new do
-        wait_for_map(status_holder)
+        wait_for_map(status_holder, future)
         finalize_map(status_holder)
       ensure
         @map_callbacks.delete(callback)
@@ -137,29 +137,35 @@ module WGPU
                   else raise ArgumentError, "Invalid map mode: #{mode}"
                   end
 
-      status_holder = { done: false, status: nil }
-      callback = FFI::Function.new(:void, [:uint32, :pointer]) do |status, _userdata|
+      status_holder = { done: false, status: nil, message: nil }
+      callback = FFI::Function.new(:void, [:uint32, Native::StringView.by_value, :pointer, :pointer]) do |status, message, _userdata1, _userdata2|
         status_holder[:done] = true
         status_holder[:status] = Native::MapAsyncStatus[status]
+        if message[:data] && !message[:data].null? && message[:length] > 0
+          status_holder[:message] = message[:data].read_string(message[:length])
+        end
       end
       @map_callbacks << callback
 
       callback_info = Native::BufferMapCallbackInfo.new
       callback_info[:next_in_chain] = nil
-      callback_info[:mode] = 1
+      callback_info[:mode] = AsyncWaiter.callback_mode(instance: @device.adapter&.instance)
       callback_info[:callback] = callback
-      callback_info[:userdata] = nil
+      callback_info[:userdata1] = nil
+      callback_info[:userdata2] = nil
 
-      Native.wgpuBufferMapAsync(@handle, mode_flag, offset, size, callback_info)
+      future = Native.wgpuBufferMapAsync(@handle, mode_flag, offset, size, callback_info)
 
-      [status_holder, callback]
+      [status_holder, callback, future]
     end
 
-    def wait_for_map(status_holder)
-      until status_holder[:done]
-        Native.wgpuDevicePoll(@device.handle, 0, nil)
-        sleep(0.001)
-      end
+    def wait_for_map(status_holder, future)
+      AsyncWaiter.wait(
+        status_holder: status_holder,
+        instance: @device.adapter&.instance,
+        device: @device,
+        future: future
+      )
     end
 
     def finalize_map(status_holder)
@@ -167,7 +173,9 @@ module WGPU
         @mapped = true
         true
       else
-        raise BufferError, "Failed to map buffer: #{status_holder[:status]}"
+        detail = status_holder[:message]
+        base = "Failed to map buffer: #{status_holder[:status]}"
+        raise BufferError, detail && !detail.empty? ? "#{base} (#{detail})" : base
       end
     end
 

@@ -133,6 +133,7 @@ module WGPU
 
     def on_submitted_work_done(device: nil)
       device ||= @device
+      instance = device&.adapter&.instance
       status_holder = { done: false, status: nil }
 
       callback = FFI::Function.new(
@@ -144,21 +145,13 @@ module WGPU
 
       callback_info = Native::QueueWorkDoneCallbackInfo.new
       callback_info[:next_in_chain] = nil
-      callback_info[:mode] = 1
+      callback_info[:mode] = AsyncWaiter.callback_mode(instance: instance)
       callback_info[:callback] = callback
       callback_info[:userdata1] = nil
       callback_info[:userdata2] = nil
 
-      Native.wgpuQueueOnSubmittedWorkDone(@handle, callback_info)
-
-      if device
-        until status_holder[:done]
-          Native.wgpuDevicePoll(device.handle, 0, nil)
-          sleep(0.001)
-        end
-      else
-        sleep(0.001) until status_holder[:done]
-      end
+      future = Native.wgpuQueueOnSubmittedWorkDone(@handle, callback_info)
+      AsyncWaiter.wait(status_holder: status_holder, instance: instance, device: device, future: future)
 
       status_holder[:status]
     end
