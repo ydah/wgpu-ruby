@@ -196,7 +196,7 @@ jobs:
           bundle exec rspec --tag gpu --tag '~optional_feature' --format progress --format json --out tmp/gpu-results.json
           bundle exec ruby -rjson -e 'examples = JSON.parse(File.read("tmp/gpu-results.json")).fetch("examples"); pending = examples.select { |example| example["status"] == "pending" }; abort "GPU examples skipped: #{pending.map { |example| example["pending_message"] }.inspect}" unless pending.empty?'
       - name: Exercise optional GPU features
-        run: bundle exec rspec --tag gpu --tag optional_feature
+        run: bundle exec rspec --tag optional_feature
       - name: Run compute examples
         run: bundle exec rake examples:ci
 
@@ -218,4 +218,4 @@ jobs:
           mkdir -p tmp
           bundle exec rspec --tag gpu --tag '~optional_feature' --format progress --format json --out tmp/gpu-results.json
           bundle exec ruby -rjson -e 'examples = JSON.parse(File.read("tmp/gpu-results.json")).fetch("examples"); pending = examples.select { |example| example["status"] == "pending" }; abort "GPU examples skipped: #{pending.map { |example| example["pending_message"] }.inspect}" unless pending.empty?'
-      - run: bundle exec rspec --tag gpu --tag optional_feature
+      - run: bundle exec rspec --tag optional_feature
