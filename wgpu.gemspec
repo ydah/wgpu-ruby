@@ -15,12 +15,14 @@ Gem::Specification.new do |spec|
   spec.required_ruby_version = ">= 3.2.0"
 
   spec.metadata["homepage_uri"] = spec.homepage
-  spec.metadata["source_code_uri"] = "https://github.com/ydah/wgpu-ruby"
+  spec.metadata["source_code_uri"] = "https://github.com/ydah/wgpu-ruby/tree/main"
+  spec.metadata["changelog_uri"] = "https://github.com/ydah/wgpu-ruby/blob/main/CHANGELOG.md"
 
   spec.files = Dir[
     "lib/**/*",
     "ext/**/*",
     "docs/**/*.md",
+    "sig/**/*.rbs",
     "README.md",
     "CHANGELOG.md",
     "LICENSE-MIT",

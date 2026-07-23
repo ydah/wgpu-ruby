@@ -33,7 +33,9 @@ begin
       beginning_of_pass_write_index: 0,
       end_of_pass_write_index: 1
     }
-  ) {}
+  ) do |pass|
+    pass.insert_debug_marker("timestamp sample")
+  end
   encoder.resolve_query_set(
     query_set: query_set,
     first_query: 0,

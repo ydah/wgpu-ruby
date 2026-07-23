@@ -141,6 +141,13 @@ Compute examples:
 - `05_image_blur.rb` - Image processing with box filter
 - `06_parallel_reduction.rb` - Parallel sum reduction
 
+Headless validation examples:
+
+- `12_headless_render.rb` - Offscreen triangle and pixel verification
+- `13_error_handling.rb` - Typed, labeled validation errors
+- `14_async_map.rb` - Async mapping through a forced GC cycle
+- `15_timestamp_query.rb` - Feature-gated timestamp query resolution
+
 Rendering examples (SDL3):
 - `07_triangle.rb` - Basic triangle rendering
 - `08_colored_quad.rb` - Indexed colored quad rendering
@@ -218,7 +225,10 @@ bundle exec rake spec
 
 See [Resource lifetime](docs/resource_lifetime.md) before building long-running
 applications, and use the [API coverage matrix](docs/api_coverage.md) to check
-the current relationship to the WebGPU specification.
+the current relationship to the WebGPU specification. The
+[documentation index](docs/README.md) links the compute/rendering guides,
+buffer/texture rules, async and error handling, troubleshooting, and release
+operations.
 
 ## Contributing
 

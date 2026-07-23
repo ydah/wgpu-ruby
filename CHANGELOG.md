@@ -14,17 +14,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add ensure-safe command pass blocks, auto pipeline layouts, resource guards,
   leak diagnostics, and callback keepalive.
 - Add checksum-verified wgpu-native installation and ABI verification.
+- Add headless rendering pixel verification, 3D/array texture round-trips,
+  async/error/timestamp examples, and GPU CI coverage.
+- Add block-scoped resource cleanup, native diagnostic logging, RBS
+  signatures, YARD documentation, and Trusted Publishing release automation.
 
 ### Changed
 
 - Make the SDL3 Ruby gem optional for compute-only users.
 - Validate descriptor shapes, enum values, buffer alignment, and texture
   readback layout before native calls.
+- Treat command buffers as consumed after submission and expose typed surface
+  acquisition status.
 
 ### Fixed
 
 - Correct `CompareFunction` values and add missing v27 surface status and
   vertex format enum entries discovered by header verification.
+- Guard exported-but-unimplemented v27 functions before they can abort Ruby,
+  expose native extension feature names, and avoid v27 query-set double
+  removal after `destroy`.
 
 ## 1.1.0 - 2026-02-16
 

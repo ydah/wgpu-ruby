@@ -1,0 +1,5 @@
+--no-private
+--markup markdown
+--output-dir doc
+--readme README.md
+--files docs/*.md

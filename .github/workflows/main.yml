@@ -63,6 +63,7 @@ jobs:
           bundle exec rspec --tag no_native
           spec/wgpu/native/distribution_spec.rb
           spec/wgpu/native/installer_spec.rb
+          spec/wgpu/native/loader_spec.rb
 
   no-sdl:
     name: Core install without SDL3
@@ -94,6 +95,20 @@ jobs:
           bundler-cache: true
       - run: bundle exec rubocop
 
+  types:
+    name: RBS and YARD
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+      - run: bundle exec rbs -I sig validate
+      - run: bundle exec yard doc --fail-on-warning
+
   gpu:
     name: GPU integration (lavapipe)
     runs-on: ubuntu-latest
@@ -124,3 +139,22 @@ jobs:
           bundle exec ruby -rjson -e 'summary = JSON.parse(File.read("tmp/gpu-results.json")).fetch("summary"); abort "GPU examples skipped" unless summary.fetch("pending_count").zero?'
       - name: Run compute examples
         run: bundle exec rake examples:ci
+
+  gpu-macos:
+    name: GPU integration (Metal, optional)
+    runs-on: macos-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+      - run: bundle exec rake wgpu:install
+      - name: Run GPU tests when Metal is exposed
+        run: |
+          mkdir -p tmp
+          bundle exec rspec --tag gpu --format progress --format json --out tmp/gpu-results.json
+          bundle exec ruby -rjson -e 'summary = JSON.parse(File.read("tmp/gpu-results.json")).fetch("summary"); abort "Metal GPU examples skipped" unless summary.fetch("pending_count").zero?'

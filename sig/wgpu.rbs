@@ -1,0 +1,381 @@
+module WGPU
+  VERSION: String
+
+  type enum_value = Symbol | Integer
+  type flags = enum_value | Array[Symbol]
+  type data = String | Array[Numeric] | untyped
+  type extent_3d = Hash[Symbol, Integer] | Array[Integer]
+
+  def self.log_level: () -> Symbol
+  def self.log_level=: (enum_value) -> enum_value
+  def self.on_log: () { (Symbol, String) -> void } -> singleton(WGPU)
+
+  class Error < StandardError
+  end
+
+  class InitializationError < Error
+  end
+
+  class AdapterError < Error
+  end
+
+  class DeviceError < Error
+  end
+
+  class BufferError < Error
+  end
+
+  class TextureError < Error
+  end
+
+  class ResourceError < Error
+  end
+
+  class ShaderError < Error
+  end
+
+  class PipelineError < Error
+  end
+
+  class CommandError < Error
+  end
+
+  class SurfaceError < Error
+  end
+
+  class SurfaceAcquisitionError < SurfaceError
+    attr_reader status: Symbol
+    def initialize: (Symbol status, ?String? message) -> void
+  end
+
+  class RenderBundleError < Error
+  end
+
+  class ValidationError < Error
+  end
+
+  class OutOfMemoryError < Error
+  end
+
+  class InternalError < Error
+  end
+
+  class DeviceLostError < Error
+  end
+
+  class TimeoutError < Error
+  end
+
+  class GPUError
+    attr_reader type: Symbol
+    attr_reader message: String
+
+    def self.from_hash: (Hash[Symbol, untyped]? error) -> GPUError?
+    def exception_class: () -> singleton(Error)
+    def raise!: () -> bot
+    def to_h: () -> { type: Symbol, message: String }
+  end
+
+  class CompilationMessage
+    attr_reader type: Symbol
+    attr_reader message: String
+    attr_reader line_num: Integer
+    attr_reader line_pos: Integer
+    attr_reader line: Integer
+    attr_reader column: Integer
+    attr_reader offset: Integer
+    attr_reader length: Integer
+    def to_s: () -> String
+  end
+
+  module NativeResource
+    attr_reader label: String?
+    def released?: () -> bool
+    def use: [A] () { (self) -> A } -> A
+    def release: () -> void
+  end
+
+  class AsyncTask[A]
+    def initialize: () { () -> A } -> void
+    def wait: (?timeout: Numeric?) -> self
+    def value: (?timeout: Numeric?) -> A
+    def then: [B] () { (A) -> B } -> AsyncTask[B]
+    def complete?: () -> bool
+    def pending?: () -> bool
+    def error: () -> Exception?
+  end
+
+  module AsyncWaiter
+    def self.poll_interval: () -> Float
+    def self.poll_interval=: (Numeric) -> Numeric
+  end
+
+  module DataTypes
+    def self.pack: (Array[Numeric], ?type: Symbol) -> String
+    def self.unpack: (String, ?type: Symbol) -> Array[Numeric]
+    def self.byte_size: (Symbol) -> Integer
+    def self.to_pointer: (data, ?type: Symbol) -> [untyped, Integer]
+    def self.validate_alignment!: (Integer, Integer, name: String) -> Integer
+  end
+
+  module TextureFormat
+    COPY_ALIGNMENT: Integer
+    def self.block_size: (enum_value, ?aspect: Symbol) -> Integer
+    def self.block_dimensions: (enum_value) -> [Integer, Integer]
+    def self.bytes_per_row: (Integer, enum_value, ?aspect: Symbol) -> Integer
+    def self.aligned_bytes_per_row: (Integer, enum_value, ?aspect: Symbol, ?alignment: Integer) -> Integer
+  end
+
+  class Instance
+    include NativeResource
+    attr_reader handle: untyped
+    def initialize: () -> void
+    def request_adapter: (**untyped) -> Adapter
+    def request_adapter_async: (**untyped) -> AsyncTask[Adapter]
+    def enumerate_adapters: (?backends: flags?) -> Array[Adapter]
+    def enumerate_adapters_async: (?backends: flags?) -> AsyncTask[Array[Adapter]]
+    def get_canvas_context: (Hash[Symbol, untyped]) -> CanvasContext
+    def process_events: () -> void
+  end
+
+  class Adapter
+    include NativeResource
+    attr_reader handle: untyped
+    attr_reader instance: Instance?
+    def self.from_handle: (untyped, ?instance: Instance?) -> Adapter
+    def request_device: (**untyped) -> Device
+    def request_device_async: (**untyped) -> AsyncTask[Device]
+    def info: () -> Hash[Symbol, untyped]
+    def name: () -> String
+    def vendor: () -> String
+    def backend_type: () -> Symbol
+    def adapter_type: () -> Symbol
+    def features: () -> Array[Symbol]
+    def has_feature?: (Symbol) -> bool
+    def limits: () -> Hash[Symbol, Integer]
+    def summary: () -> String
+  end
+
+  class Device
+    include NativeResource
+    attr_reader handle: untyped
+    attr_reader queue: Queue
+    attr_reader adapter: Adapter?
+    def adapter_info: () -> Hash[Symbol, untyped]?
+    def create_buffer: (?label: String?, size: Integer, usage: flags, ?mapped_at_creation: bool) -> Buffer
+    def create_buffer_with_data: (?label: String?, data: data, usage: flags, ?type: Symbol) -> Buffer
+    def create_shader_module: (**untyped) -> ShaderModule
+    def create_command_encoder: (?label: String?) -> CommandEncoder
+    def create_bind_group_layout: (?label: String?, entries: Array[Hash[Symbol, untyped]]) -> BindGroupLayout
+    def create_bind_group: (?label: String?, layout: BindGroupLayout, entries: Array[Hash[Symbol, untyped]]) -> BindGroup
+    def create_pipeline_layout: (?label: String?, bind_group_layouts: Array[BindGroupLayout]) -> PipelineLayout
+    def create_compute_pipeline: (**untyped) -> ComputePipeline
+    def create_compute_pipeline_async: (**untyped) -> AsyncTask[ComputePipeline]
+    def create_render_pipeline: (**untyped) -> RenderPipeline
+    def create_render_pipeline_async: (**untyped) -> AsyncTask[RenderPipeline]
+    def create_texture: (**untyped) -> Texture
+    def create_sampler: (**untyped) -> Sampler
+    def create_query_set: (?label: String?, type: enum_value, count: Integer) -> QuerySet
+    def create_render_bundle_encoder: (**untyped) -> RenderBundleEncoder
+    def features: () -> Array[Symbol]
+    def has_feature?: (Symbol) -> bool
+    def limits: () -> Hash[Symbol, Integer]
+    def poll: (?wait: bool) -> Integer
+    def push_error_scope: (?enum_value) -> void
+    def pop_error_scope: (?timeout: Numeric?) -> Hash[Symbol, untyped]
+    def pop_error_scope_typed: (?timeout: Numeric?) -> GPUError?
+    def with_error_scope: [A] (?enum_value) { () -> A } -> A
+    def on_uncaptured_error: () { (GPUError) -> void } -> self
+    def on_device_lost: () { (Symbol, String) -> void } -> self
+    def destroy: () -> void
+  end
+
+  class Queue
+    include NativeResource
+    attr_reader handle: untyped
+    def submit: (CommandBuffer | Array[CommandBuffer]) -> void
+    def write_buffer: (Buffer, Integer, data, ?data_offset: Integer, ?size: Integer?, ?type: Symbol) -> void
+    def write_texture: (**untyped) -> void
+    def read_buffer: (Buffer, ?offset: Integer, ?size: Integer?, ?device: Device?, ?staging: Buffer?) -> String
+    def read_texture: (**untyped) -> String
+    def on_submitted_work_done: (?device: Device?, ?timeout: Numeric?) -> Symbol
+    def on_submitted_work_done_async: (?device: Device?, ?timeout: Numeric?) -> AsyncTask[Symbol]
+  end
+
+  class Buffer
+    include NativeResource
+    attr_reader handle: untyped
+    attr_reader size: Integer
+    attr_reader usage: Integer
+    def write: (data, ?offset: Integer, ?type: Symbol) -> void
+    def mapped_range: (?offset: Integer, ?size: Integer?) -> BufferMappedRange
+    def get_mapped_range: (?offset: Integer, ?size: Integer?) -> BufferMappedRange
+    def unmap: () -> void
+    def map_sync: (enum_value, ?offset: Integer, ?size: Integer?, ?timeout: Numeric?) -> true
+    def map_async: (enum_value, ?offset: Integer, ?size: Integer?) -> AsyncTask[true]
+    def read_mapped_data: (?offset: Integer, ?size: Integer?) -> String
+    def read_mapped: (?offset: Integer, ?size: Integer?, ?type: Symbol?) -> (String | Array[Numeric])
+    def write_mapped: (data, ?offset: Integer, ?type: Symbol) -> void
+    def read_mapped_values: (?type: Symbol, ?offset: Integer, ?count: Integer?) -> Array[Numeric]
+    def map_state: () -> Symbol
+    def destroy: () -> void
+  end
+
+  class BufferMappedRange
+    def read: (?type: Symbol, ?count: Integer?) -> Array[Numeric]
+    def write: (data, ?type: Symbol) -> void
+    def read_floats: (?Integer?) -> Array[Float]
+    def write_floats: (Array[Numeric]) -> void
+    def read_uint32s: (?Integer?) -> Array[Integer]
+    def write_uint32s: (Array[Integer]) -> void
+    def read_bytes: () -> String
+    def write_bytes: (String) -> void
+  end
+
+  class Texture
+    include NativeResource
+    attr_reader handle: untyped
+    attr_reader surface_status: Symbol?
+    def create_view: (**untyped) -> TextureView
+    def width: () -> Integer
+    def height: () -> Integer
+    def depth_or_array_layers: () -> Integer
+    def size: () -> Hash[Symbol, Integer]
+    def mip_level_count: () -> Integer
+    def sample_count: () -> Integer
+    def dimension: () -> Symbol
+    def format: () -> Symbol
+    def usage: () -> Integer
+    def destroy: () -> void
+  end
+
+  class TextureView
+    include NativeResource
+    attr_reader handle: untyped
+  end
+
+  class Sampler
+    include NativeResource
+    attr_reader handle: untyped
+  end
+
+  class QuerySet
+    include NativeResource
+    attr_reader handle: untyped
+    attr_reader count: Integer
+    attr_reader type: Symbol
+    def destroy: () -> void
+  end
+
+  class ShaderModule
+    include NativeResource
+    attr_reader handle: untyped
+    def get_compilation_info: () -> { status: Symbol, messages: Array[CompilationMessage] }
+    def get_compilation_info_async: () -> AsyncTask[Hash[Symbol, untyped]]
+  end
+
+  class BindGroupLayout
+    include NativeResource
+    attr_reader handle: untyped
+  end
+
+  class BindGroup
+    include NativeResource
+    attr_reader handle: untyped
+  end
+
+  class PipelineLayout
+    include NativeResource
+    attr_reader handle: untyped
+  end
+
+  class ComputePipeline
+    include NativeResource
+    attr_reader handle: untyped
+    def get_bind_group_layout: (Integer) -> BindGroupLayout
+  end
+
+  class RenderPipeline
+    include NativeResource
+    attr_reader handle: untyped
+    def get_bind_group_layout: (Integer) -> BindGroupLayout
+  end
+
+  class CommandEncoder
+    include NativeResource
+    attr_reader handle: untyped
+    def begin_compute_pass: (**untyped) -> ComputePass
+                          | [A] (**untyped) { (ComputePass) -> A } -> A
+    def begin_render_pass: (**untyped) -> RenderPass
+                         | [A] (**untyped) { (RenderPass) -> A } -> A
+    def copy_buffer_to_buffer: (**untyped) -> void
+    def copy_buffer_to_texture: (**untyped) -> void
+    def copy_texture_to_buffer: (**untyped) -> void
+    def copy_texture_to_texture: (**untyped) -> void
+    def resolve_query_set: (**untyped) -> void
+    def clear_buffer: (Buffer, ?offset: Integer, ?size: Integer?) -> void
+    def write_timestamp: (QuerySet, Integer) -> void
+    def finish: (?label: String?) -> CommandBuffer
+  end
+
+  class CommandBuffer
+    include NativeResource
+    attr_reader handle: untyped
+    def submitted?: () -> bool
+  end
+
+  class ComputePass
+    include NativeResource
+    attr_reader handle: untyped
+    def set_pipeline: (ComputePipeline) -> void
+    def set_bind_group: (Integer, BindGroup, ?dynamic_offsets: Array[Integer]) -> void
+    def dispatch_workgroups: (Integer, ?Integer, ?Integer) -> void
+    def dispatch_workgroups_indirect: (Buffer, ?offset: Integer) -> void
+    def end_pass: () -> void
+    def end: () -> void
+    def ended?: () -> bool
+  end
+
+  class RenderPass
+    include NativeResource
+    attr_reader handle: untyped
+    def set_pipeline: (RenderPipeline) -> void
+    def set_bind_group: (Integer, BindGroup, ?dynamic_offsets: Array[Integer]) -> void
+    def set_vertex_buffer: (Integer, Buffer, ?offset: Integer, ?size: Integer?) -> void
+    def set_index_buffer: (Buffer, enum_value, ?offset: Integer, ?size: Integer?) -> void
+    def draw: (Integer, ?instance_count: Integer, ?first_vertex: Integer, ?first_instance: Integer) -> void
+    def draw_indexed: (Integer, **untyped) -> void
+    def end_pass: () -> void
+    def end: () -> void
+    def ended?: () -> bool
+  end
+
+  class RenderBundleEncoder
+    include NativeResource
+    attr_reader handle: untyped
+    def finish: (?label: String?) -> RenderBundle
+  end
+
+  class RenderBundle
+    include NativeResource
+    attr_reader handle: untyped
+  end
+
+  class Surface
+    include NativeResource
+    attr_reader handle: untyped
+    def configure: (**untyped) -> void
+    def unconfigure: () -> void
+    def current_texture: () -> Texture
+    def present: () -> void
+    def capabilities: (Adapter) -> Hash[Symbol, untyped]
+  end
+
+  class CanvasContext
+    include NativeResource
+    def configure: (**untyped) -> void
+    def unconfigure: () -> void
+    def get_current_texture: () -> Texture
+    def present: () -> void
+  end
+end
