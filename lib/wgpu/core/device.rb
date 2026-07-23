@@ -18,22 +18,48 @@ module WGPU
     # @raise [TimeoutError] if the request exceeds +timeout+
     def self.request(adapter, label: nil, required_features: [], required_limits: nil, timeout: nil)
       device_ptr = FFI::MemoryPointer.new(:pointer)
-      status_holder = { done: false, value: nil, message: nil }
+      status_holder = {
+        done: false,
+        value: nil,
+        message: nil,
+        abandoned: false,
+        cleanup_claimed: false,
+        mutex: Mutex.new
+      }
       device_callback_state = {
         mutex: Mutex.new,
         uncaptured_error: nil,
         device_lost: nil
       }
 
+      callback_token = nil
+      device_lost_token = nil
+      uncaptured_error_token = nil
       callback = FFI::Function.new(
         :void, [:uint32, :pointer, Native::StringView.by_value, :pointer, :pointer]
       ) do |status, device, message, _userdata1, _userdata2|
-        status_holder[:value] = Native::RequestDeviceStatus[status]
-        if message[:data] && !message[:data].null? && message[:length] > 0
-          status_holder[:message] = message[:data].read_string(message[:length])
+        cleanup_abandoned = false
+        begin
+          status_holder[:mutex].synchronize do
+            status_holder[:value] = Native::RequestDeviceStatus[status]
+            if message[:data] && !message[:data].null? && message[:length] > 0
+              status_holder[:message] = message[:data].read_string(message[:length])
+            end
+            device_ptr.write_pointer(device)
+            status_holder[:done] = true
+            if status_holder[:abandoned] && !status_holder[:cleanup_claimed]
+              status_holder[:cleanup_claimed] = true
+              cleanup_abandoned = true
+            end
+          end
+          if cleanup_abandoned
+            Native.wgpuDeviceRelease(device) if device && !device.null?
+            CallbackKeepalive.release(adapter, device_lost_token)
+            CallbackKeepalive.release(adapter, uncaptured_error_token)
+          end
+        ensure
+          CallbackKeepalive.release(adapter, callback_token)
         end
-        device_ptr.write_pointer(device)
-        status_holder[:done] = true
       end
 
       queue_desc = Native::QueueDescriptor.new
@@ -91,31 +117,70 @@ module WGPU
       callback_info[:userdata1] = nil
       callback_info[:userdata2] = nil
 
+      device_lost_token = CallbackKeepalive.retain(adapter, device_lost_callback)
+      uncaptured_error_token = CallbackKeepalive.retain(adapter, uncaptured_error_callback)
       callback_token = CallbackKeepalive.retain(adapter, callback)
+      future =
+        begin
+          Native.wgpuAdapterRequestDevice(adapter.handle, desc, callback_info)
+        rescue StandardError
+          CallbackKeepalive.release(adapter, callback_token)
+          CallbackKeepalive.release(adapter, device_lost_token)
+          CallbackKeepalive.release(adapter, uncaptured_error_token)
+          raise
+        end
+
       begin
-        future = Native.wgpuAdapterRequestDevice(adapter.handle, desc, callback_info)
         AsyncWaiter.wait(
           status_holder: status_holder,
           instance: adapter.instance,
           future: future,
           timeout: timeout
         )
-      ensure
-        CallbackKeepalive.release(adapter, callback_token)
+      rescue TimeoutError
+        abandoned_device = nil
+        cleanup_abandoned = status_holder[:mutex].synchronize do
+          status_holder[:abandoned] = true
+          next false unless status_holder[:done] && !status_holder[:cleanup_claimed]
+
+          status_holder[:cleanup_claimed] = true
+          abandoned_device = device_ptr.read_pointer
+          true
+        end
+        if cleanup_abandoned
+          Native.wgpuDeviceRelease(abandoned_device) if abandoned_device && !abandoned_device.null?
+          CallbackKeepalive.release(adapter, device_lost_token)
+          CallbackKeepalive.release(adapter, uncaptured_error_token)
+        end
+        raise
       end
 
       handle = device_ptr.read_pointer
       if handle.null? || status_holder[:value] != :success
+        CallbackKeepalive.release(adapter, device_lost_token)
+        CallbackKeepalive.release(adapter, uncaptured_error_token)
         msg = status_holder[:message] || "Unknown error"
         raise DeviceError, "Failed to request device: #{msg}"
       end
 
-      device = new(handle, adapter: adapter, label: label, callback_state: device_callback_state)
-      device.send(:retain_device_callback, device_lost_callback)
-      device.send(:retain_device_callback, uncaptured_error_callback)
-      device
+      begin
+        device = new(handle, adapter: adapter, label: label, callback_state: device_callback_state)
+        device.send(:retain_device_callback, device_lost_callback)
+        device.send(:retain_device_callback, uncaptured_error_callback)
+        device
+      rescue StandardError
+        device ? device.release : Native.wgpuDeviceRelease(handle)
+        raise
+      ensure
+        CallbackKeepalive.release(adapter, device_lost_token)
+        CallbackKeepalive.release(adapter, uncaptured_error_token)
+      end
     end
 
+    # Wraps a native device and obtains its default queue.
+    # @param handle [FFI::Pointer] native device handle
+    # @param adapter [Adapter, nil] adapter that created the device
+    # @param label [String, nil] optional debug label
     def initialize(handle, adapter: nil, label: nil, callback_state: nil)
       @handle = handle
       @adapter = adapter
@@ -129,14 +194,20 @@ module WGPU
       @queue = Queue.new(Native.wgpuDeviceGetQueue(@handle), device: self)
     end
 
+    # Returns information about the adapter that created this device.
+    # @return [Hash, nil]
     def adapter_info
       @adapter&.info
     end
 
+    # Creates a GPU buffer.
+    # @return [Buffer]
     def create_buffer(label: nil, size:, usage:, mapped_at_creation: false)
       Buffer.new(self, label: label, size: size, usage: usage, mapped_at_creation: mapped_at_creation)
     end
 
+    # Creates a shader module from WGSL or SPIR-V source.
+    # @return [ShaderModule]
     def create_shader_module(label: nil, code: nil, spirv: nil, compilation_hints: [], validate: false)
       ShaderModule.new(
         self,
@@ -148,32 +219,46 @@ module WGPU
       )
     end
 
+    # Creates a command encoder.
+    # @return [CommandEncoder]
     def create_command_encoder(label: nil)
       CommandEncoder.new(self, label: label)
     end
 
+    # Creates a bind group layout.
+    # @return [BindGroupLayout]
     def create_bind_group_layout(label: nil, entries:)
       BindGroupLayout.new(self, label: label, entries: entries)
     end
 
+    # Creates a bind group.
+    # @return [BindGroup]
     def create_bind_group(label: nil, layout:, entries:)
       BindGroup.new(self, label: label, layout: layout, entries: entries)
     end
 
+    # Creates a pipeline layout.
+    # @return [PipelineLayout]
     def create_pipeline_layout(label: nil, bind_group_layouts:)
       PipelineLayout.new(self, label: label, bind_group_layouts: bind_group_layouts)
     end
 
+    # Creates a compute pipeline.
+    # @return [ComputePipeline]
     def create_compute_pipeline(label: nil, layout:, compute:)
       ComputePipeline.new(self, label: label, layout: layout, compute: compute)
     end
 
+    # Creates a compute pipeline on a background task.
+    # @return [AsyncTask] task yielding a {ComputePipeline}
     def create_compute_pipeline_async(label: nil, layout:, compute:)
       AsyncTask.new do
         create_compute_pipeline(label: label, layout: layout, compute: compute)
       end
     end
 
+    # Creates a render pipeline.
+    # @return [RenderPipeline]
     def create_render_pipeline(label: nil, layout:, vertex:, primitive: {}, depth_stencil: nil, multisample: {}, fragment: nil)
       RenderPipeline.new(self,
         label: label,
@@ -186,6 +271,8 @@ module WGPU
       )
     end
 
+    # Creates a render pipeline on a background task.
+    # @return [AsyncTask] task yielding a {RenderPipeline}
     def create_render_pipeline_async(label: nil, layout:, vertex:, primitive: {}, depth_stencil: nil, multisample: {}, fragment: nil)
       AsyncTask.new do
         create_render_pipeline(
@@ -200,6 +287,8 @@ module WGPU
       end
     end
 
+    # Creates a texture.
+    # @return [Texture]
     def create_texture(label: nil, size:, format:, usage:, dimension: :d2, mip_level_count: 1, sample_count: 1, view_formats: [])
       Texture.new(self,
         label: label,
@@ -213,6 +302,8 @@ module WGPU
       )
     end
 
+    # Creates a texture sampler.
+    # @return [Sampler]
     def create_sampler(label: nil, address_mode_u: :clamp_to_edge, address_mode_v: :clamp_to_edge, address_mode_w: :clamp_to_edge, mag_filter: :nearest, min_filter: :nearest, mipmap_filter: :nearest, lod_min_clamp: 0.0, lod_max_clamp: 32.0, compare: nil, max_anisotropy: 1)
       Sampler.new(self,
         label: label,
@@ -229,6 +320,11 @@ module WGPU
       )
     end
 
+    # Creates a mapped buffer initialized from typed Ruby data.
+    # @param data [Array, String, FFI::Pointer] source data
+    # @param usage [Symbol, Array<Symbol>, Integer] buffer usage flags
+    # @param type [Symbol] source element type
+    # @return [Buffer]
     def create_buffer_with_data(label: nil, data:, usage:, type: :f32)
       data_ptr, byte_size = DataTypes.to_pointer(data, type:)
       DataTypes.validate_alignment!(byte_size, 4, name: "buffer data size")
@@ -243,10 +339,14 @@ module WGPU
       buffer
     end
 
+    # Creates a GPU query set.
+    # @return [QuerySet]
     def create_query_set(label: nil, type:, count:)
       QuerySet.new(self, label: label, type: type, count: count)
     end
 
+    # Creates an encoder for reusable render commands.
+    # @return [RenderBundleEncoder]
     def create_render_bundle_encoder(color_formats:, depth_stencil_format: nil, sample_count: 1,
                                      depth_read_only: false, stencil_read_only: false, label: nil)
       RenderBundleEncoder.new(self,
@@ -259,6 +359,8 @@ module WGPU
       )
     end
 
+    # Lists optional features enabled on the device.
+    # @return [Array<Symbol>]
     def features
       supported = Native::SupportedFeatures.new
       Native.wgpuDeviceGetFeatures(@handle, supported)
@@ -272,10 +374,15 @@ module WGPU
       result
     end
 
+    # Reports whether a feature is enabled on the device.
+    # @param feature [Symbol] feature name
+    # @return [Boolean]
     def has_feature?(feature)
       features.include?(feature)
     end
 
+    # Returns resource limits supported by the device.
+    # @return [Hash{Symbol => Integer}]
     def limits
       supported = Native::SupportedLimits.new
       supported[:next_in_chain] = nil
@@ -283,6 +390,9 @@ module WGPU
       limits_to_hash(supported[:limits])
     end
 
+    # Processes device work, optionally waiting for queue progress.
+    # @param wait [Boolean] whether to wait for submitted work
+    # @return [Integer] native poll status
     def poll(wait: false)
       if Native.device_poll_available?
         Native.wgpuDevicePoll(@handle, wait ? 1 : 0, nil)
@@ -292,22 +402,33 @@ module WGPU
       end
     end
 
+    # Pushes a scope that captures matching GPU errors.
+    # @param filter [Symbol, Integer] error filter
+    # @return [void]
     def push_error_scope(filter = :validation)
       filter_value = Native::EnumHelper.coerce(Native::ErrorFilter, filter, name: "error filter")
       Native.wgpuDevicePushErrorScope(@handle, filter_value)
     end
 
+    # Pops the latest error scope and waits for its result.
+    # @param timeout [Numeric, nil] maximum wait time in seconds
+    # @return [Hash] native status, error type, and message
     def pop_error_scope(timeout: nil)
       error_holder = { done: false, status: nil, type: nil, message: nil }
 
+      callback_token = nil
       callback = FFI::Function.new(
         :void, [:uint32, :uint32, Native::StringView.by_value, :pointer, :pointer]
       ) do |status, error_type, message, _userdata1, _userdata2|
-        error_holder[:done] = true
-        error_holder[:status] = Native::PopErrorScopeStatus[status]
-        error_holder[:type] = Native::ErrorType[error_type]
-        if message[:data] && !message[:data].null? && message[:length] > 0
-          error_holder[:message] = message[:data].read_string(message[:length])
+        begin
+          error_holder[:status] = Native::PopErrorScopeStatus[status]
+          error_holder[:type] = Native::ErrorType[error_type]
+          if message[:data] && !message[:data].null? && message[:length] > 0
+            error_holder[:message] = message[:data].read_string(message[:length])
+          end
+          error_holder[:done] = true
+        ensure
+          CallbackKeepalive.release(self, callback_token)
         end
       end
 
@@ -319,18 +440,20 @@ module WGPU
       callback_info[:userdata2] = nil
 
       callback_token = CallbackKeepalive.retain(self, callback)
-      begin
-        future = Native.wgpuDevicePopErrorScope(@handle, callback_info)
-        AsyncWaiter.wait(
-          status_holder: error_holder,
-          instance: @adapter&.instance,
-          device: self,
-          future: future,
-          timeout: timeout
-        )
-      ensure
-        CallbackKeepalive.release(self, callback_token)
-      end
+      future =
+        begin
+          Native.wgpuDevicePopErrorScope(@handle, callback_info)
+        rescue StandardError
+          CallbackKeepalive.release(self, callback_token)
+          raise
+        end
+      AsyncWaiter.wait(
+        status_holder: error_holder,
+        instance: @adapter&.instance,
+        device: self,
+        future: future,
+        timeout: timeout
+      )
 
       error_holder
     end
@@ -343,10 +466,17 @@ module WGPU
       AsyncTask.new { pop_error_scope(timeout: timeout) }
     end
 
+    # Pops the latest error scope as a typed error.
+    # @param timeout [Numeric, nil] maximum wait time in seconds
+    # @return [GPUError, nil]
     def pop_error_scope_typed(timeout: nil)
       GPUError.from_hash(pop_error_scope(timeout: timeout))
     end
 
+    # Runs a block inside an error scope and raises captured GPU errors.
+    # @param filter [Symbol, Integer] error filter
+    # @yieldreturn [Object] block result
+    # @return [Object] block result
     def with_error_scope(filter = :validation)
       push_error_scope(filter)
       result = yield
@@ -355,6 +485,10 @@ module WGPU
       result
     end
 
+    # Registers the handler for uncaptured GPU errors.
+    # @yieldparam error [GPUError] reported error
+    # @return [Device] this device
+    # @raise [ArgumentError] if no block is provided
     def on_uncaptured_error(&handler)
       raise ArgumentError, "on_uncaptured_error requires a block" unless handler
 
@@ -362,6 +496,11 @@ module WGPU
       self
     end
 
+    # Registers the handler invoked when the device is lost.
+    # @yieldparam reason [Symbol] native device-lost reason
+    # @yieldparam message [String] native diagnostic message
+    # @return [Device] this device
+    # @raise [ArgumentError] if no block is provided
     def on_device_lost(&handler)
       raise ArgumentError, "on_device_lost requires a block" unless handler
 
@@ -369,6 +508,8 @@ module WGPU
       self
     end
 
+    # Destroys device-owned native resources.
+    # @return [void]
     def destroy
       return if @handle.null?
       Native.wgpuDeviceDestroy(@handle)

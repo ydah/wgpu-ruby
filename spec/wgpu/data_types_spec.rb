@@ -47,4 +47,26 @@ RSpec.describe WGPU::DataTypes, :skip_gpu_check do
     expect(range.read_uint32s).to eq([1, 0xFFFFFFFF])
     expect { range.write_uint32s([1, 2, 3]) }.to raise_error(ArgumentError, /exceeds mapped range/)
   end
+
+  it "rejects mapped-range reads and raw writes beyond the native allocation" do
+    pointer = FFI::MemoryPointer.new(:char, 8)
+    range = WGPU::BufferMappedRange.new(pointer, 8)
+
+    expect { range.read_uint32s(3) }.to raise_error(ArgumentError, /exceeds mapped range/)
+    expect { range.read_uint8s(-1) }.to raise_error(ArgumentError, /count must be non-negative/)
+    expect { range.write_bytes("123456789") }.to raise_error(ArgumentError, /exceeds mapped range/)
+  end
+
+  it "rejects aligned map ranges beyond the buffer boundary" do
+    buffer = WGPU::Buffer.allocate
+    buffer.instance_variable_set(:@size, 16)
+
+    expect(buffer.send(:validate_map_range!, 8, 8)).to eq([8, 8])
+    expect do
+      buffer.send(:validate_map_range!, 8, 12)
+    end.to raise_error(ArgumentError, /exceeds buffer size 16/)
+    expect do
+      buffer.send(:validate_map_range!, 24, 4)
+    end.to raise_error(ArgumentError, /exceeds buffer size 16/)
+  end
 end

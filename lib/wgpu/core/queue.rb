@@ -4,11 +4,18 @@ module WGPU
   class Queue
     attr_reader :handle
 
+    # Wraps a device's native submission queue.
+    # @param handle [FFI::Pointer] native queue handle
+    # @param device [Device, nil] owning device
     def initialize(handle, device: nil)
       @handle = handle
       @device = device
     end
 
+    # Submits command buffers exactly once in the supplied order.
+    # @param command_buffers [CommandBuffer, Array<CommandBuffer>] buffers to submit
+    # @return [void]
+    # @raise [CommandError] for duplicate or previously submitted buffers
     def submit(command_buffers)
       buffers = Array(command_buffers)
       return if buffers.empty?
@@ -28,6 +35,11 @@ module WGPU
       buffers.each(&:mark_submitted!)
     end
 
+    # Writes typed data into a GPU buffer.
+    # @param buffer [Buffer] destination buffer
+    # @param buffer_offset [Integer] destination byte offset
+    # @param data [Array, String, FFI::Pointer] source data
+    # @return [void]
     def write_buffer(buffer, buffer_offset, data, data_offset: 0, size: nil, type: :f32)
       data_ptr, byte_size = DataTypes.to_pointer(data, type:)
       DataTypes.validate_alignment!(buffer_offset, 4, name: "buffer_offset")
@@ -49,6 +61,12 @@ module WGPU
       )
     end
 
+    # Writes typed data into a texture region.
+    # @param destination [Hash] destination texture and origin
+    # @param data [Array, String, FFI::Pointer] source data
+    # @param data_layout [Hash] source byte layout
+    # @param size [Hash, Array] extent to write
+    # @return [void]
     def write_texture(destination:, data:, data_layout:, size:, type: :f32)
       data_ptr, byte_size = DataTypes.to_pointer(data, type:)
 
@@ -83,6 +101,10 @@ module WGPU
       Native.wgpuQueueWriteTexture(@handle, dst, data_ptr, byte_size, layout, extent)
     end
 
+    # Copies a GPU buffer to mapped staging memory and returns its bytes.
+    # @param buffer [Buffer] source buffer
+    # @param staging [Buffer, nil] reusable map-read staging buffer
+    # @return [String] copied bytes
     def read_buffer(buffer, offset: 0, size: nil, device: nil, staging: nil)
       device ||= @device
       raise ArgumentError, "device is required when the queue has no owning device" unless device
@@ -116,6 +138,12 @@ module WGPU
       )
     end
 
+    # Copies a texture region to mapped staging memory and returns its padded bytes.
+    # @param source [Hash] source texture, origin, aspect, and optional format
+    # @param data_layout [Hash] destination byte layout
+    # @param size [Hash, Array] extent to read
+    # @param staging [Buffer, nil] reusable map-read staging buffer
+    # @return [String] copied bytes
     def read_texture(source:, data_layout:, size:, device: nil, staging: nil)
       device ||= @device
       raise ArgumentError, "device is required when the queue has no owning device" unless device
@@ -173,16 +201,25 @@ module WGPU
       )
     end
 
+    # Waits until all previously submitted queue work completes.
+    # @param device [Device, nil] device used to drive callback progress
+    # @param timeout [Numeric, nil] maximum wait time in seconds
+    # @return [Symbol] native completion status
     def on_submitted_work_done(device: nil, timeout: nil)
       device ||= @device
       instance = device&.adapter&.instance
       status_holder = { done: false, status: nil }
 
+      callback_token = nil
       callback = FFI::Function.new(
         :void, [:uint32, :pointer, :pointer]
       ) do |status, _userdata1, _userdata2|
-        status_holder[:done] = true
-        status_holder[:status] = Native::QueueWorkDoneStatus[status]
+        begin
+          status_holder[:status] = Native::QueueWorkDoneStatus[status]
+          status_holder[:done] = true
+        ensure
+          CallbackKeepalive.release(self, callback_token)
+        end
       end
 
       callback_info = Native::QueueWorkDoneCallbackInfo.new
@@ -193,22 +230,26 @@ module WGPU
       callback_info[:userdata2] = nil
 
       callback_token = CallbackKeepalive.retain(self, callback)
-      begin
-        future = Native.wgpuQueueOnSubmittedWorkDone(@handle, callback_info)
-        AsyncWaiter.wait(
-          status_holder: status_holder,
-          instance: instance,
-          device: device,
-          future: future,
-          timeout: timeout
-        )
-      ensure
-        CallbackKeepalive.release(self, callback_token)
-      end
+      future =
+        begin
+          Native.wgpuQueueOnSubmittedWorkDone(@handle, callback_info)
+        rescue StandardError
+          CallbackKeepalive.release(self, callback_token)
+          raise
+        end
+      AsyncWaiter.wait(
+        status_holder: status_holder,
+        instance: instance,
+        device: device,
+        future: future,
+        timeout: timeout
+      )
 
       status_holder[:status]
     end
 
+    # Waits for prior queue work on a background task.
+    # @return [AsyncTask] task yielding the native completion status
     def on_submitted_work_done_async(device: nil, timeout: nil)
       AsyncTask.new do
         on_submitted_work_done(device: device, timeout: timeout)

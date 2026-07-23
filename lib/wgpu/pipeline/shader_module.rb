@@ -4,6 +4,12 @@ module WGPU
   class ShaderModule
     attr_reader :handle
 
+    # Creates a shader module from WGSL, GLSL, or SPIR-V input.
+    # @param device [Device] owning device
+    # @param code [String, Array<Integer>, nil] shader source or binary
+    # @param spirv [String, Array<Integer>, nil] explicit SPIR-V input
+    # @param validate [Boolean] whether to fetch and raise compilation errors
+    # @raise [ShaderError] if native validation, creation, or compilation fails
     def initialize(device, label: nil, code: nil, spirv: nil, compilation_hints: [], validate: false)
       @device = device
       @pointers = []
@@ -43,6 +49,9 @@ module WGPU
       end
     end
 
+    # Fetches compiler diagnostics for the shader.
+    # @return [Hash] request status and compilation messages
+    # @raise [ShaderError] if the pinned native library cannot provide diagnostics
     def get_compilation_info
       unless Native.compilation_info_available?
         raise ShaderError,
@@ -52,34 +61,39 @@ module WGPU
       result_holder = { done: false, status: nil, messages: [] }
       instance = @device.adapter&.instance
 
+      callback_token = nil
       callback = FFI::Function.new(
         :void, [:uint32, :pointer, :pointer, :pointer]
       ) do |status, compilation_info_ptr, _userdata1, _userdata2|
-        result_holder[:done] = true
-        result_holder[:status] = Native::CompilationInfoRequestStatus[status]
+        begin
+          result_holder[:status] = Native::CompilationInfoRequestStatus[status]
 
-        unless compilation_info_ptr.null?
-          info = Native::CompilationInfo.new(compilation_info_ptr)
-          count = info[:message_count]
-          if count > 0 && !info[:messages].null?
-            count.times do |i|
-              msg_ptr = info[:messages] + (i * Native::CompilationMessage.size)
-              msg = Native::CompilationMessage.new(msg_ptr)
-              message_text = if msg[:message][:data] && !msg[:message][:data].null? && msg[:message][:length] > 0
-                               msg[:message][:data].read_string(msg[:message][:length])
-                             else
-                               ""
-                             end
-              result_holder[:messages] << CompilationMessage.new(
-                type: msg[:type],
-                message: message_text,
-                line_num: msg[:line_num],
-                line_pos: msg[:line_pos],
-                offset: msg[:offset],
-                length: msg[:length]
-              )
+          unless compilation_info_ptr.null?
+            info = Native::CompilationInfo.new(compilation_info_ptr)
+            count = info[:message_count]
+            if count > 0 && !info[:messages].null?
+              count.times do |i|
+                msg_ptr = info[:messages] + (i * Native::CompilationMessage.size)
+                msg = Native::CompilationMessage.new(msg_ptr)
+                message_text = if msg[:message][:data] && !msg[:message][:data].null? && msg[:message][:length] > 0
+                                 msg[:message][:data].read_string(msg[:message][:length])
+                               else
+                                 ""
+                               end
+                result_holder[:messages] << CompilationMessage.new(
+                  type: msg[:type],
+                  message: message_text,
+                  line_num: msg[:line_num],
+                  line_pos: msg[:line_pos],
+                  offset: msg[:offset],
+                  length: msg[:length]
+                )
+              end
             end
           end
+          result_holder[:done] = true
+        ensure
+          CallbackKeepalive.release(self, callback_token)
         end
       end
 
@@ -91,12 +105,14 @@ module WGPU
       callback_info[:userdata2] = nil
 
       callback_token = CallbackKeepalive.retain(self, callback)
-      begin
-        future = Native.wgpuShaderModuleGetCompilationInfo(@handle, callback_info)
-        AsyncWaiter.wait(status_holder: result_holder, instance: instance, device: @device, future: future)
-      ensure
-        CallbackKeepalive.release(self, callback_token)
-      end
+      future =
+        begin
+          Native.wgpuShaderModuleGetCompilationInfo(@handle, callback_info)
+        rescue StandardError
+          CallbackKeepalive.release(self, callback_token)
+          raise
+        end
+      AsyncWaiter.wait(status_holder: result_holder, instance: instance, device: @device, future: future)
 
       {
         status: result_holder[:status],
@@ -104,6 +120,8 @@ module WGPU
       }
     end
 
+    # Fetches compiler diagnostics on a background task.
+    # @return [AsyncTask] task yielding compilation information
     def get_compilation_info_async
       AsyncTask.new { get_compilation_info }
     end

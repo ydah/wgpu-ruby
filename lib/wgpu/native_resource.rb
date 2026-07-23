@@ -66,6 +66,8 @@ module WGPU
 
   module CallbackKeepalive
     INITIALIZATION_MUTEX = Mutex.new
+    RETAINED_MUTEX = Mutex.new
+    RETAINED_CALLBACKS = {}
 
     module_function
 
@@ -78,6 +80,7 @@ module WGPU
       mutex, callbacks = storage_for(owner)
       token = Object.new
       mutex.synchronize { callbacks[token] = callback }
+      RETAINED_MUTEX.synchronize { RETAINED_CALLBACKS[token] = callback }
       token
     end
 
@@ -91,6 +94,7 @@ module WGPU
 
       mutex, callbacks = storage_for(owner)
       mutex.synchronize { callbacks.delete(token) }
+      RETAINED_MUTEX.synchronize { RETAINED_CALLBACKS.delete(token) }
     end
 
     # Returns the number of callbacks retained for an owner.
@@ -185,6 +189,8 @@ module WGPU
 
     attr_reader :label
 
+    # Reports whether the native handle has been released or is null.
+    # @return [Boolean]
     def released?
       return true if @released
       return false unless instance_variable_defined?(:@handle)

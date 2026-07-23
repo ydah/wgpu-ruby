@@ -4,6 +4,10 @@ module WGPU
   class Adapter
     attr_reader :handle, :instance
 
+    # Wraps an existing native adapter handle.
+    # @param handle [FFI::Pointer] native adapter handle
+    # @param instance [Instance, nil] instance that owns the adapter
+    # @return [Adapter]
     def self.from_handle(handle, instance: nil)
       adapter = adopt_native_handle(handle)
       adapter.instance_variable_set(:@instance, instance)
@@ -25,17 +29,37 @@ module WGPU
     def self.request(instance, power_preference: :high_performance, backend: nil, feature_level: :core,
                      force_fallback_adapter: false, compatible_surface: nil, timeout: nil)
       adapter_ptr = FFI::MemoryPointer.new(:pointer)
-      status_holder = { value: nil, message: nil }
+      status_holder = {
+        done: false,
+        value: nil,
+        message: nil,
+        abandoned: false,
+        cleanup_claimed: false,
+        mutex: Mutex.new
+      }
 
+      callback_token = nil
       callback = FFI::Function.new(
         :void, [:uint32, :pointer, Native::StringView.by_value, :pointer, :pointer]
       ) do |status, adapter, message, _userdata1, _userdata2|
-        status_holder[:value] = Native::RequestAdapterStatus[status]
-        if message[:data] && !message[:data].null? && message[:length] > 0
-          status_holder[:message] = message[:data].read_string(message[:length])
+        abandoned_adapter = nil
+        begin
+          status_holder[:mutex].synchronize do
+            status_holder[:value] = Native::RequestAdapterStatus[status]
+            if message[:data] && !message[:data].null? && message[:length] > 0
+              status_holder[:message] = message[:data].read_string(message[:length])
+            end
+            adapter_ptr.write_pointer(adapter)
+            status_holder[:done] = true
+            if status_holder[:abandoned] && !status_holder[:cleanup_claimed]
+              status_holder[:cleanup_claimed] = true
+              abandoned_adapter = adapter
+            end
+          end
+          Native.wgpuAdapterRelease(abandoned_adapter) if abandoned_adapter && !abandoned_adapter.null?
+        ensure
+          CallbackKeepalive.release(instance, callback_token)
         end
-        adapter_ptr.write_pointer(adapter)
-        status_holder[:done] = true
       end
 
       options = Native::RequestAdapterOptions.new
@@ -66,12 +90,26 @@ module WGPU
       callback_info[:userdata2] = nil
 
       callback_token = CallbackKeepalive.retain(instance, callback)
+      future =
+        begin
+          Native.wgpuInstanceRequestAdapter(instance.handle, options, callback_info)
+        rescue StandardError
+          CallbackKeepalive.release(instance, callback_token)
+          raise
+        end
+
       begin
-        status_holder[:done] = false
-        future = Native.wgpuInstanceRequestAdapter(instance.handle, options, callback_info)
         AsyncWaiter.wait(status_holder: status_holder, instance: instance, future: future, timeout: timeout)
-      ensure
-        CallbackKeepalive.release(instance, callback_token)
+      rescue TimeoutError
+        abandoned_adapter = status_holder[:mutex].synchronize do
+          status_holder[:abandoned] = true
+          next unless status_holder[:done] && !status_holder[:cleanup_claimed]
+
+          status_holder[:cleanup_claimed] = true
+          adapter_ptr.read_pointer
+        end
+        Native.wgpuAdapterRelease(abandoned_adapter) if abandoned_adapter && !abandoned_adapter.null?
+        raise
       end
 
       handle = adapter_ptr.read_pointer
@@ -83,11 +121,16 @@ module WGPU
       new(handle, instance: instance)
     end
 
+    # Wraps a native adapter handle.
+    # @param handle [FFI::Pointer] native adapter handle
+    # @param instance [Instance, nil] instance that owns the adapter
     def initialize(handle, instance: nil)
       @handle = handle
       @instance = instance
     end
 
+    # Requests a logical device from this adapter.
+    # @return [Device]
     def request_device(label: nil, required_features: [], required_limits: nil, timeout: nil)
       Device.request(
         self,
@@ -98,6 +141,8 @@ module WGPU
       )
     end
 
+    # Requests a logical device on a background task.
+    # @return [AsyncTask] task yielding a {Device}
     def request_device_async(label: nil, required_features: [], required_limits: nil, timeout: nil)
       AsyncTask.new do
         request_device(
@@ -109,6 +154,8 @@ module WGPU
       end
     end
 
+    # Returns identifying and backend information for the adapter.
+    # @return [Hash]
     def info
       info_struct = Native::AdapterInfo.new
       Native.wgpuAdapterGetInfo(@handle, info_struct)
@@ -128,22 +175,32 @@ module WGPU
       result
     end
 
+    # Returns the adapter's device name.
+    # @return [String]
     def name
       info[:device]
     end
 
+    # Returns the adapter vendor name.
+    # @return [String]
     def vendor
       info[:vendor]
     end
 
+    # Returns the backend used by the adapter.
+    # @return [Symbol, Integer]
     def backend_type
       info[:backend_type]
     end
 
+    # Returns the adapter's device classification.
+    # @return [Symbol, Integer]
     def adapter_type
       info[:adapter_type]
     end
 
+    # Lists optional features supported by the adapter.
+    # @return [Array<Symbol>]
     def features
       supported = Native::SupportedFeatures.new
       Native.wgpuAdapterGetFeatures(@handle, supported)
@@ -157,10 +214,15 @@ module WGPU
       result
     end
 
+    # Reports whether the adapter supports a feature.
+    # @param feature [Symbol] feature name
+    # @return [Boolean]
     def has_feature?(feature)
       features.include?(feature)
     end
 
+    # Returns the adapter resource limits.
+    # @return [Hash{Symbol => Integer}]
     def limits
       supported = Native::SupportedLimits.new
       supported[:next_in_chain] = nil
@@ -168,6 +230,8 @@ module WGPU
       limits_to_hash(supported[:limits])
     end
 
+    # Returns a concise human-readable adapter description.
+    # @return [String]
     def summary
       info_hash = info
       "#{info_hash[:device]} (#{info_hash[:adapter_type]}) via #{info_hash[:backend_type]}"

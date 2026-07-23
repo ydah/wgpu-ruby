@@ -4,6 +4,12 @@ module WGPU
   class Buffer
     attr_reader :handle, :size, :usage
 
+    # Creates a GPU buffer with the requested size and usage.
+    # @param device [Device] owning device
+    # @param size [Integer] buffer size in bytes
+    # @param usage [Symbol, Array<Symbol>, Integer] usage flags
+    # @param mapped_at_creation [Boolean] whether to expose an initial mapped range
+    # @raise [BufferError] if native validation or creation fails
     def initialize(device, label: nil, size:, usage:, mapped_at_creation: false)
       @device = device
       @size = size
@@ -35,6 +41,11 @@ module WGPU
       end
     end
 
+    # Writes typed data through the device's default queue.
+    # @param data [Array, String, FFI::Pointer] source data
+    # @param offset [Integer] destination byte offset
+    # @param type [Symbol] source element type
+    # @return [void]
     def write(data, offset: 0, type: :f32)
       ptr, byte_size = DataTypes.to_pointer(data, type:)
       DataTypes.validate_alignment!(offset, 4, name: "offset")
@@ -42,66 +53,87 @@ module WGPU
       Native.wgpuQueueWriteBuffer(@device.queue.handle, @handle, offset, ptr, byte_size)
     end
 
+    # Returns a writable view of a mapped byte range.
+    # @return [BufferMappedRange]
+    # @raise [BufferError] if the buffer is not mapped or no range is available
     def mapped_range(offset: 0, size: nil)
       raise BufferError, "Buffer is not mapped" unless @mapped
 
       size ||= @size - offset
-      validate_map_range!(offset, size)
+      offset, size = validate_map_range!(offset, size)
       ptr = Native.wgpuBufferGetMappedRange(@handle, offset, size)
       raise BufferError, "Failed to get mapped range" if ptr.null?
 
       BufferMappedRange.new(ptr, size)
     end
 
+    # Returns a writable view of a mapped byte range.
+    # @return [BufferMappedRange]
     def get_mapped_range(offset: 0, size: nil)
       mapped_range(offset: offset, size: size)
     end
 
+    # Unmaps the buffer and invalidates its mapped ranges.
+    # @return [void]
     def unmap
       Native.wgpuBufferUnmap(@handle)
       @mapped = false
       @map_state = :unmapped
     end
 
+    # Maps a range and waits for native completion.
+    # @param mode [Symbol, Integer] map access mode
+    # @param timeout [Numeric, nil] maximum wait time in seconds
+    # @return [Boolean] true when mapped
+    # @raise [BufferError] if mapping fails
     def map_sync(mode, offset: 0, size: nil, timeout: nil)
-      status_holder, callback_token, future = begin_map_request(mode, offset: offset, size: size)
+      status_holder, _callback_token, future = begin_map_request(mode, offset: offset, size: size)
       wait_for_map(status_holder, future, timeout:)
       finalize_map(status_holder)
-    ensure
-      CallbackKeepalive.release(self, callback_token)
     end
 
+    # Maps a range on a background task.
+    # @param mode [Symbol, Integer] map access mode
+    # @return [AsyncTask] task yielding true when mapped
     def map_async(mode, offset: 0, size: nil)
-      status_holder, callback_token, future = begin_map_request(mode, offset: offset, size: size)
+      status_holder, _callback_token, future = begin_map_request(mode, offset: offset, size: size)
       AsyncTask.new do
         wait_for_map(status_holder, future)
         finalize_map(status_holder)
-      ensure
-        CallbackKeepalive.release(self, callback_token)
       end
     end
 
+    # Copies bytes from a const mapped range.
+    # @return [String] mapped bytes
+    # @raise [BufferError] if the buffer is not mapped
     def read_mapped_data(offset: 0, size: nil)
       raise BufferError, "Buffer is not mapped" unless @mapped
 
       size ||= @size - offset
-      validate_map_range!(offset, size)
+      offset, size = validate_map_range!(offset, size)
       ptr = Native.wgpuBufferGetConstMappedRange(@handle, offset, size)
       raise BufferError, "Failed to get mapped range" if ptr.null?
 
       ptr.read_bytes(size)
     end
 
+    # Reads mapped bytes, optionally decoding typed values.
+    # @param type [Symbol, nil] element type, or +nil+ for raw bytes
+    # @return [String, Array]
     def read_mapped(offset: 0, size: nil, type: nil)
       bytes = read_mapped_data(offset: offset, size: size)
       type ? DataTypes.unpack(bytes, type:) : bytes
     end
 
+    # Writes typed data into a mapped range.
+    # @param data [Array, String, FFI::Pointer] source data
+    # @param type [Symbol] source element type
+    # @return [void]
     def write_mapped(data, offset: 0, type: :f32)
       raise BufferError, "Buffer is not mapped" unless @mapped
 
       ptr, byte_size = DataTypes.to_pointer(data, type:)
-      validate_map_range!(offset, byte_size)
+      offset, byte_size = validate_map_range!(offset, byte_size)
       target = Native.wgpuBufferGetMappedRange(@handle, offset, byte_size)
       raise BufferError, "Failed to get mapped range" if target.null?
 
@@ -168,18 +200,26 @@ module WGPU
       read_mapped_values(type: :u8, offset:, count:)
     end
 
+    # Reads mapped values of the requested element type.
+    # @param type [Symbol] element type
+    # @param count [Integer, nil] number of values
+    # @return [Array]
     def read_mapped_values(type: :f32, offset: 0, count: nil)
       element_size = DataTypes.byte_size(type)
       size = count ? count * element_size : @size - offset
       DataTypes.unpack(read_mapped_data(offset:, size:), type:)
     end
 
+    # Returns the current mapping state.
+    # @return [Symbol]
     def map_state
       return @map_state unless Native.buffer_map_state_available?
 
       Native.wgpuBufferGetMapState(@handle) || @map_state
     end
 
+    # Destroys the buffer's storage.
+    # @return [void]
     def destroy
       Native.wgpuBufferDestroy(@handle)
     end
@@ -209,15 +249,20 @@ module WGPU
 
     def begin_map_request(mode, offset:, size:)
       size ||= @size - offset
-      validate_map_range!(offset, size)
+      offset, size = validate_map_range!(offset, size)
       mode_flag = Native::EnumHelper.coerce(Native::MapMode, mode, name: "map mode")
 
       status_holder = { done: false, status: nil, message: nil }
+      callback_token = nil
       callback = FFI::Function.new(:void, [:uint32, Native::StringView.by_value, :pointer, :pointer]) do |status, message, _userdata1, _userdata2|
-        status_holder[:done] = true
-        status_holder[:status] = Native::MapAsyncStatus[status]
-        if message[:data] && !message[:data].null? && message[:length] > 0
-          status_holder[:message] = message[:data].read_string(message[:length])
+        begin
+          status_holder[:status] = Native::MapAsyncStatus[status]
+          if message[:data] && !message[:data].null? && message[:length] > 0
+            status_holder[:message] = message[:data].read_string(message[:length])
+          end
+          status_holder[:done] = true
+        ensure
+          CallbackKeepalive.release(self, callback_token)
         end
       end
       callback_token = CallbackKeepalive.retain(self, callback)
@@ -229,7 +274,13 @@ module WGPU
       callback_info[:userdata1] = nil
       callback_info[:userdata2] = nil
 
-      future = Native.wgpuBufferMapAsync(@handle, mode_flag, offset, size, callback_info)
+      future =
+        begin
+          Native.wgpuBufferMapAsync(@handle, mode_flag, offset, size, callback_info)
+        rescue StandardError
+          CallbackKeepalive.release(self, callback_token)
+          raise
+        end
       @map_state = :pending
 
       [status_holder, callback_token, future]
@@ -268,12 +319,21 @@ module WGPU
     end
 
     def validate_map_range!(offset, size)
-      DataTypes.validate_alignment!(offset, 8, name: "map offset")
-      DataTypes.validate_alignment!(size, 4, name: "map size")
+      offset = DataTypes.validate_alignment!(offset, 8, name: "map offset")
+      size = DataTypes.validate_alignment!(size, 4, name: "map size")
+      if offset > @size || size > @size - offset
+        raise ArgumentError,
+          "mapped range (offset #{offset}, size #{size}) exceeds buffer size #{@size}"
+      end
+
+      [offset, size]
     end
   end
 
   class BufferMappedRange
+    # Wraps a native mapped memory range.
+    # @param pointer [FFI::Pointer] start of mapped memory
+    # @param size [Integer] range size in bytes
     def initialize(pointer, size)
       @pointer = pointer
       @size = size
@@ -381,12 +441,26 @@ module WGPU
       write(data, type: :u8)
     end
 
+    # Decodes typed values from the mapped range.
+    # @param type [Symbol] element type
+    # @param count [Integer, nil] number of values
+    # @return [Array]
     def read(type: :f32, count: nil)
       byte_size = DataTypes.byte_size(type)
       count ||= @size / byte_size
-      DataTypes.unpack(@pointer.read_bytes(count * byte_size), type:)
+      count = Integer(count)
+      raise ArgumentError, "count must be non-negative" if count.negative?
+
+      bytes_to_read = count * byte_size
+      validate_byte_length!(bytes_to_read)
+      DataTypes.unpack(@pointer.read_bytes(bytes_to_read), type:)
     end
 
+    # Encodes typed values into the mapped range.
+    # @param data [Array, String] values or bytes to write
+    # @param type [Symbol] element type
+    # @return [void]
+    # @raise [ArgumentError] if the encoded data exceeds the range
     def write(data, type: :f32)
       bytes = data.is_a?(String) ? data : DataTypes.pack(data, type:)
       raise ArgumentError, "data exceeds mapped range" if bytes.bytesize > @size
@@ -394,12 +468,26 @@ module WGPU
       @pointer.put_bytes(0, bytes)
     end
 
+    # Returns all bytes in the mapped range.
+    # @return [String]
     def read_bytes
       @pointer.read_bytes(@size)
     end
 
+    # Writes bytes at the start of the mapped range.
+    # @param data [String] bytes to write
+    # @return [void]
     def write_bytes(data)
+      validate_byte_length!(data.bytesize)
       @pointer.put_bytes(0, data)
+    end
+
+    private
+
+    def validate_byte_length!(byte_length)
+      return if byte_length <= @size
+
+      raise ArgumentError, "data exceeds mapped range"
     end
   end
 end
