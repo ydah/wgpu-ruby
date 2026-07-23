@@ -9,7 +9,6 @@ module WGPU
       @size = size
       @usage = normalize_usage(usage)
       @mapped = mapped_at_creation
-      @map_callbacks = []
 
       desc, keepalive = build_descriptor(
         label:,
@@ -55,20 +54,20 @@ module WGPU
     end
 
     def map_sync(mode, offset: 0, size: nil)
-      status_holder, callback, future = begin_map_request(mode, offset: offset, size: size)
+      status_holder, callback_token, future = begin_map_request(mode, offset: offset, size: size)
       wait_for_map(status_holder, future)
       finalize_map(status_holder)
     ensure
-      @map_callbacks.delete(callback) if callback
+      CallbackKeepalive.release(self, callback_token)
     end
 
     def map_async(mode, offset: 0, size: nil)
-      status_holder, callback, future = begin_map_request(mode, offset: offset, size: size)
+      status_holder, callback_token, future = begin_map_request(mode, offset: offset, size: size)
       AsyncTask.new do
         wait_for_map(status_holder, future)
         finalize_map(status_holder)
       ensure
-        @map_callbacks.delete(callback)
+        CallbackKeepalive.release(self, callback_token)
       end
     end
 
@@ -146,7 +145,7 @@ module WGPU
           status_holder[:message] = message[:data].read_string(message[:length])
         end
       end
-      @map_callbacks << callback
+      callback_token = CallbackKeepalive.retain(self, callback)
 
       callback_info = Native::BufferMapCallbackInfo.new
       callback_info[:next_in_chain] = nil
@@ -157,7 +156,7 @@ module WGPU
 
       future = Native.wgpuBufferMapAsync(@handle, mode_flag, offset, size, callback_info)
 
-      [status_holder, callback, future]
+      [status_holder, callback_token, future]
     end
 
     def wait_for_map(status_holder, future)

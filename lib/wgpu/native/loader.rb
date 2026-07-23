@@ -5,7 +5,36 @@ require_relative "distribution"
 
 module WGPU
   module Native
+    module OptionalFunctions
+      def attach_optional_function(name, arguments, result)
+        attach_function(name, arguments, result)
+        optional_functions[name] = true
+      rescue FFI::NotFoundError
+        optional_functions[name] = false
+        define_singleton_method(name) do |*|
+          raise WGPU::Error,
+            "Optional wgpu-native function #{name} is unavailable in the loaded library " \
+            "(expected #{Distribution::VERSION})"
+        end
+      end
+
+      def optional_function_available?(name)
+        optional_functions.fetch(name, false)
+      end
+
+      def optional_capabilities
+        optional_functions.dup.freeze
+      end
+
+      private
+
+      def optional_functions
+        @optional_functions ||= {}
+      end
+    end
+
     extend FFI::Library
+    extend OptionalFunctions
 
     class << self
       def library_path

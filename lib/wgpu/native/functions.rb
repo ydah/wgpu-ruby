@@ -17,11 +17,8 @@ module WGPU
     attach_function :wgpuInstanceProcessEvents,
                     [:pointer], :void
 
-    begin
-      attach_function :wgpuInstanceWaitAny,
-                      [:pointer, :size_t, :pointer, :uint64], WaitStatus
-    rescue FFI::NotFoundError
-    end
+    attach_optional_function :wgpuInstanceWaitAny,
+                             [:pointer, :size_t, :pointer, :uint64], WaitStatus
 
     attach_function :wgpuAdapterRelease,
                     [:pointer], :void
@@ -77,11 +74,8 @@ module WGPU
     attach_function :wgpuDeviceCreateCommandEncoder,
                     [:pointer, CommandEncoderDescriptor.by_ref], :pointer
 
-    begin
-      attach_function :wgpuDevicePoll,
-                      [:pointer, :uint32, :pointer], :uint32
-    rescue FFI::NotFoundError
-    end
+    attach_optional_function :wgpuDevicePoll,
+                             [:pointer, :uint32, :pointer], :uint32
 
     attach_function :wgpuQueueRelease,
                     [:pointer], :void

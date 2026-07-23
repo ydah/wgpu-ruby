@@ -53,6 +53,46 @@ module WGPU
 
   at_exit { LeakTracker.warn_remaining if WGPU.debug_leaks }
 
+  module CallbackKeepalive
+    INITIALIZATION_MUTEX = Mutex.new
+
+    module_function
+
+    def retain(owner, callback)
+      mutex, callbacks = storage_for(owner)
+      token = Object.new
+      mutex.synchronize { callbacks[token] = callback }
+      token
+    end
+
+    def release(owner, token)
+      return unless token
+
+      mutex, callbacks = storage_for(owner)
+      mutex.synchronize { callbacks.delete(token) }
+    end
+
+    def count(owner)
+      mutex, callbacks = storage_for(owner)
+      mutex.synchronize { callbacks.length }
+    end
+
+    def storage_for(owner)
+      INITIALIZATION_MUTEX.synchronize do
+        mutex = owner.instance_variable_get(:@wgpu_callback_keepalive_mutex)
+        callbacks = owner.instance_variable_get(:@wgpu_callback_keepalive)
+        unless mutex && callbacks
+          mutex = Mutex.new
+          callbacks = {}
+          owner.instance_variable_set(:@wgpu_callback_keepalive_mutex, mutex)
+          owner.instance_variable_set(:@wgpu_callback_keepalive, callbacks)
+        end
+        [mutex, callbacks]
+      end
+    end
+    private_class_method :storage_for
+  end
+
   module NativeResource
     GUARDED_METHOD_EXEMPTIONS = [:initialize, :release, :released?, :handle, :label, :inspect].freeze
 

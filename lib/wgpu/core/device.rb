@@ -74,8 +74,13 @@ module WGPU
       callback_info[:userdata1] = nil
       callback_info[:userdata2] = nil
 
-      future = Native.wgpuAdapterRequestDevice(adapter.handle, desc, callback_info)
-      AsyncWaiter.wait(status_holder: status_holder, instance: adapter.instance, future: future)
+      callback_token = CallbackKeepalive.retain(adapter, callback)
+      begin
+        future = Native.wgpuAdapterRequestDevice(adapter.handle, desc, callback_info)
+        AsyncWaiter.wait(status_holder: status_holder, instance: adapter.instance, future: future)
+      ensure
+        CallbackKeepalive.release(adapter, callback_token)
+      end
 
       handle = device_ptr.read_pointer
       if handle.null? || status_holder[:value] != :success
@@ -273,8 +278,13 @@ module WGPU
       callback_info[:userdata1] = nil
       callback_info[:userdata2] = nil
 
-      future = Native.wgpuDevicePopErrorScope(@handle, callback_info)
-      AsyncWaiter.wait(status_holder: error_holder, instance: @adapter&.instance, device: self, future: future)
+      callback_token = CallbackKeepalive.retain(self, callback)
+      begin
+        future = Native.wgpuDevicePopErrorScope(@handle, callback_info)
+        AsyncWaiter.wait(status_holder: error_holder, instance: @adapter&.instance, device: self, future: future)
+      ensure
+        CallbackKeepalive.release(self, callback_token)
+      end
 
       error_holder
     end

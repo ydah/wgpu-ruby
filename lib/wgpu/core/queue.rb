@@ -153,8 +153,13 @@ module WGPU
       callback_info[:userdata1] = nil
       callback_info[:userdata2] = nil
 
-      future = Native.wgpuQueueOnSubmittedWorkDone(@handle, callback_info)
-      AsyncWaiter.wait(status_holder: status_holder, instance: instance, device: device, future: future)
+      callback_token = CallbackKeepalive.retain(self, callback)
+      begin
+        future = Native.wgpuQueueOnSubmittedWorkDone(@handle, callback_info)
+        AsyncWaiter.wait(status_holder: status_holder, instance: instance, device: device, future: future)
+      ensure
+        CallbackKeepalive.release(self, callback_token)
+      end
 
       status_holder[:status]
     end

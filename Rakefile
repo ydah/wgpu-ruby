@@ -23,6 +23,13 @@ namespace :wgpu do
     FileUtils.rm_rf(path)
     puts "Removed #{path}"
   end
+
+  desc "Compare Ruby enum definitions with the pinned wgpu-native webgpu.h"
+  task verify_abi: :install do
+    require_relative "lib/wgpu"
+    WGPU::Native::AbiVerifier.new.verify!
+    puts "wgpu-native #{WGPU::Native::Distribution::VERSION} enum ABI verified"
+  end
 end
 
 namespace :examples do

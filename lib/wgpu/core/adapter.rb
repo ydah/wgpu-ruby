@@ -53,9 +53,14 @@ module WGPU
       callback_info[:userdata1] = nil
       callback_info[:userdata2] = nil
 
-      status_holder[:done] = false
-      future = Native.wgpuInstanceRequestAdapter(instance.handle, options, callback_info)
-      AsyncWaiter.wait(status_holder: status_holder, instance: instance, future: future)
+      callback_token = CallbackKeepalive.retain(instance, callback)
+      begin
+        status_holder[:done] = false
+        future = Native.wgpuInstanceRequestAdapter(instance.handle, options, callback_info)
+        AsyncWaiter.wait(status_holder: status_holder, instance: instance, future: future)
+      ensure
+        CallbackKeepalive.release(instance, callback_token)
+      end
 
       handle = adapter_ptr.read_pointer
       if handle.null? || status_holder[:value] != :success

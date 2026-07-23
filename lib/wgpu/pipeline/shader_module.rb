@@ -75,8 +75,13 @@ module WGPU
       callback_info[:userdata1] = nil
       callback_info[:userdata2] = nil
 
-      future = Native.wgpuShaderModuleGetCompilationInfo(@handle, callback_info)
-      AsyncWaiter.wait(status_holder: result_holder, instance: instance, device: @device, future: future)
+      callback_token = CallbackKeepalive.retain(self, callback)
+      begin
+        future = Native.wgpuShaderModuleGetCompilationInfo(@handle, callback_info)
+        AsyncWaiter.wait(status_holder: result_holder, instance: instance, device: @device, future: future)
+      ensure
+        CallbackKeepalive.release(self, callback_token)
+      end
 
       {
         status: result_holder[:status],

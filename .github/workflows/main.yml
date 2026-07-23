@@ -39,6 +39,9 @@ jobs:
           sudo apt-get install -y libvulkan1
       - name: Download and verify wgpu-native
         run: bundle exec rake wgpu:install
+      - name: Verify Ruby enum ABI
+        if: runner.os == 'Linux' && matrix.ruby == '3.4'
+        run: bundle exec rake wgpu:verify_abi
       - name: Run GPU-independent tests
         run: bundle exec rspec --tag '~gpu'
 

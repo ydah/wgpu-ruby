@@ -4,11 +4,11 @@ module WGPU
   module Native
     class << self
       def future_api?
-        respond_to?(:wgpuInstanceWaitAny)
+        optional_function_available?(:wgpuInstanceWaitAny)
       end
 
       def device_poll_available?
-        respond_to?(:wgpuDevicePoll)
+        optional_function_available?(:wgpuDevicePoll)
       end
     end
   end

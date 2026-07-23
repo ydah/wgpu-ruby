@@ -57,3 +57,27 @@ RSpec.describe WGPU::NativeResource, :skip_gpu_check do
     expect(resource.inspect).to include("label=\"upload\"", "released=false")
   end
 end
+
+RSpec.describe WGPU::CallbackKeepalive, :skip_gpu_check do
+  it "retains callbacks by owner until their token is released" do
+    owner = Object.new
+    callback = proc {}
+
+    token = described_class.retain(owner, callback)
+
+    expect(described_class.count(owner)).to eq(1)
+    expect(owner.instance_variable_get(:@wgpu_callback_keepalive).value?(callback)).to be(true)
+
+    described_class.release(owner, token)
+    expect(described_class.count(owner)).to eq(0)
+  end
+
+  it "makes release idempotent" do
+    owner = Object.new
+    token = described_class.retain(owner, proc {})
+
+    2.times { described_class.release(owner, token) }
+
+    expect(described_class.count(owner)).to eq(0)
+  end
+end

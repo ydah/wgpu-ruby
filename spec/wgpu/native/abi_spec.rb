@@ -39,6 +39,22 @@ RSpec.describe WGPU::Native, :skip_gpu_check do
       expect(WGPU::Native::QueueWorkDoneCallbackInfo.size).to eq(40)
       expect(WGPU::Native::CompilationInfoCallbackInfo.size).to eq(40)
     end
+
+    it "keeps callback fields at ABI-stable offsets" do
+      pointer_size = FFI::Pointer.size
+      callback_info = WGPU::Native::RequestAdapterCallbackInfo
+
+      expect(callback_info.offset_of(:next_in_chain)).to eq(0)
+      expect(callback_info.offset_of(:mode)).to eq(pointer_size)
+      expect(callback_info.offset_of(:callback)).to eq(pointer_size * 2)
+      expect(callback_info.offset_of(:userdata1)).to eq(pointer_size * 3)
+      expect(callback_info.offset_of(:userdata2)).to eq(pointer_size * 4)
+    end
+
+    it "keeps StringView fields at pointer-sized offsets" do
+      expect(WGPU::Native::StringView.offset_of(:data)).to eq(0)
+      expect(WGPU::Native::StringView.offset_of(:length)).to eq(FFI::Pointer.size)
+    end
   end
 
   describe "future API types" do
@@ -51,8 +67,35 @@ RSpec.describe WGPU::Native, :skip_gpu_check do
 
   describe "runtime capability checks" do
     it "reports availability from bound functions" do
-      expect(WGPU::Native.future_api?).to eq(WGPU::Native.respond_to?(:wgpuInstanceWaitAny))
-      expect(WGPU::Native.device_poll_available?).to eq(WGPU::Native.respond_to?(:wgpuDevicePoll))
+      expect(WGPU::Native.future_api?).to eq(
+        WGPU::Native.optional_function_available?(:wgpuInstanceWaitAny)
+      )
+      expect(WGPU::Native.device_poll_available?).to eq(
+        WGPU::Native.optional_function_available?(:wgpuDevicePoll)
+      )
+    end
+
+    it "loads missing optional symbols and raises only when called" do
+      library = Module.new do
+        extend FFI::Library
+        extend WGPU::Native::OptionalFunctions
+        ffi_lib FFI::Library::LIBC
+      end
+
+      expect do
+        library.attach_optional_function(:wgpuDefinitelyMissingForSpec, [], :void)
+      end.not_to raise_error
+      expect(library.optional_function_available?(:wgpuDefinitelyMissingForSpec)).to be(false)
+      expect { library.wgpuDefinitelyMissingForSpec }.to raise_error(
+        WGPU::Error,
+        /Optional wgpu-native function wgpuDefinitelyMissingForSpec is unavailable/
+      )
+    end
+  end
+
+  describe WGPU::Native::AbiVerifier do
+    it "matches every Ruby FFI enum with the checksum-pinned webgpu.h" do
+      expect(described_class.new.verify!).to be(true)
     end
   end
 end
