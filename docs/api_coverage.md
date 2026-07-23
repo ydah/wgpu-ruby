@@ -122,7 +122,8 @@ native interoperation.
 | `09_clear_color.rb` | Per-frame clear and presentation | current texture/view, render pass clear, submit, present |
 | `10_textured_quad.rb` | Texture sampling | texture upload/view, sampler, texture bind group, draw |
 | `11_rotating_cube.rb` | Depth-tested 3D rendering | vertex/index/uniform/depth resources, pipeline, per-frame uniform write, draw |
+| `12_headless_render.rb` | Offscreen triangle and readback | render-to-texture, block render pass, aligned texture readback, pixel assertions |
 
 When a public API changes, the corresponding example is part of the acceptance
-test surface. Compute and future headless examples are suitable for automated
-GPU CI; SDL window examples remain manual integration checks.
+test surface. Compute and headless examples are automated in GPU CI; SDL
+window examples remain manual integration checks.

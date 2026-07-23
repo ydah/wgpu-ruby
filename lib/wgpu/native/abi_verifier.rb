@@ -5,7 +5,21 @@ module WGPU
     class AbiVerifier
       FORCE32_KEY = "force32"
       EXTENSION_ENTRIES = {
-        "SType" => %w[invalid shadersourceglsl]
+        "SType" => %w[invalid shadersourceglsl],
+        "FeatureName" => %w[
+          pushconstants textureadapterspecificformatfeatures multidrawindirectcount
+          vertexwritablestorage texturebindingarray
+          sampledtextureandstoragebufferarraynonuniformindexing
+          pipelinestatisticsquery storageresourcebindingarray
+          partiallyboundbindingarray textureformat16bitnorm
+          texturecompressionastchdr mappableprimarybuffers bufferbindingarray
+          uniformbufferandstoragetexturearraynonuniformindexing polygonmodeline
+          polygonmodepoint conservativerasterization spirvshaderpassthrough
+          vertexattribute64bit textureformatnv12 rayquery shaderf64 shaderi16
+          shaderprimitiveindex shaderearlydepthtest subgroup subgroupvertex
+          subgroupbarrier timestampqueryinsideencoders timestampqueryinsidepasses
+          shaderint64
+        ]
       }.freeze
 
       def initialize(header_path: nil, native: Native)
