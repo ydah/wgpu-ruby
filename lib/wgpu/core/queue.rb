@@ -151,7 +151,7 @@ module WGPU
       staging&.release if owns_staging
     end
 
-    def on_submitted_work_done(device: nil)
+    def on_submitted_work_done(device: nil, timeout: nil)
       device ||= @device
       instance = device&.adapter&.instance
       status_holder = { done: false, status: nil }
@@ -173,7 +173,13 @@ module WGPU
       callback_token = CallbackKeepalive.retain(self, callback)
       begin
         future = Native.wgpuQueueOnSubmittedWorkDone(@handle, callback_info)
-        AsyncWaiter.wait(status_holder: status_holder, instance: instance, device: device, future: future)
+        AsyncWaiter.wait(
+          status_holder: status_holder,
+          instance: instance,
+          device: device,
+          future: future,
+          timeout: timeout
+        )
       ensure
         CallbackKeepalive.release(self, callback_token)
       end
@@ -181,9 +187,9 @@ module WGPU
       status_holder[:status]
     end
 
-    def on_submitted_work_done_async(device: nil)
+    def on_submitted_work_done_async(device: nil, timeout: nil)
       AsyncTask.new do
-        on_submitted_work_done(device: device)
+        on_submitted_work_done(device: device, timeout: timeout)
       end
     end
 

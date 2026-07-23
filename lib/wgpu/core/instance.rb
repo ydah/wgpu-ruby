@@ -8,32 +8,36 @@ module WGPU
       desc = Native::InstanceDescriptor.new
       desc[:next_in_chain] = nil
       desc[:features][:next_in_chain] = nil
-      desc[:features][:timed_wait_any_enable] = 0
-      desc[:features][:timed_wait_any_max_count] = 0
+      desc[:features][:timed_wait_any_enable] = 1
+      desc[:features][:timed_wait_any_max_count] = 1
 
       @handle = Native.wgpuCreateInstance(desc)
       raise InitializationError, "Failed to create WebGPU instance" if @handle.null?
     end
 
-    def request_adapter(power_preference: :high_performance, backend: nil, feature_level: :core, force_fallback_adapter: false, compatible_surface: nil)
+    def request_adapter(power_preference: :high_performance, backend: nil, feature_level: :core,
+                        force_fallback_adapter: false, compatible_surface: nil, timeout: nil)
       Adapter.request(
         self,
         power_preference: power_preference,
         backend: backend,
         feature_level: feature_level,
         force_fallback_adapter: force_fallback_adapter,
-        compatible_surface: compatible_surface
+        compatible_surface: compatible_surface,
+        timeout: timeout
       )
     end
 
-    def request_adapter_async(power_preference: :high_performance, backend: nil, feature_level: :core, force_fallback_adapter: false, compatible_surface: nil)
+    def request_adapter_async(power_preference: :high_performance, backend: nil, feature_level: :core,
+                              force_fallback_adapter: false, compatible_surface: nil, timeout: nil)
       AsyncTask.new do
         request_adapter(
           power_preference: power_preference,
           backend: backend,
           feature_level: feature_level,
           force_fallback_adapter: force_fallback_adapter,
-          compatible_surface: compatible_surface
+          compatible_surface: compatible_surface,
+          timeout: timeout
         )
       end
     end

@@ -61,6 +61,13 @@ module WGPU
       :unknown, 0x00000004
     )
 
+    DeviceLostReason = enum(
+      :unknown, 0x00000001,
+      :destroyed, 0x00000002,
+      :instance_dropped, 0x00000003,
+      :failed_creation, 0x00000004
+    )
+
     BufferMapState = enum(
       :unmapped, 0x00000001,
       :pending, 0x00000002,
@@ -283,7 +290,9 @@ module WGPU
       :sint32, 0x00000024,
       :sint32x2, 0x00000025,
       :sint32x3, 0x00000026,
-      :sint32x4, 0x00000027
+      :sint32x4, 0x00000027,
+      :unorm10_10_10_2, 0x00000028,
+      :unorm8x4_bgra, 0x00000029
     )
 
     IndexFormat = enum(
@@ -366,11 +375,11 @@ module WGPU
       :undefined, 0x00000000,
       :never, 0x00000001,
       :less, 0x00000002,
-      :less_equal, 0x00000003,
-      :greater, 0x00000004,
-      :greater_equal, 0x00000005,
-      :equal, 0x00000006,
-      :not_equal, 0x00000007,
+      :equal, 0x00000003,
+      :less_equal, 0x00000004,
+      :greater, 0x00000005,
+      :not_equal, 0x00000006,
+      :greater_equal, 0x00000007,
       :always, 0x00000008
     )
 
@@ -467,7 +476,9 @@ module WGPU
       :timeout, 0x00000003,
       :outdated, 0x00000004,
       :lost, 0x00000005,
-      :error, 0x00000006
+      :out_of_memory, 0x00000006,
+      :device_lost, 0x00000007,
+      :error, 0x00000008
     )
 
     QueryType = enum(

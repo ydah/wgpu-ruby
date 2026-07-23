@@ -11,7 +11,8 @@ module WGPU
       adapter
     end
 
-    def self.request(instance, power_preference: :high_performance, backend: nil, feature_level: :core, force_fallback_adapter: false, compatible_surface: nil)
+    def self.request(instance, power_preference: :high_performance, backend: nil, feature_level: :core,
+                     force_fallback_adapter: false, compatible_surface: nil, timeout: nil)
       adapter_ptr = FFI::MemoryPointer.new(:pointer)
       status_holder = { value: nil, message: nil }
 
@@ -57,7 +58,7 @@ module WGPU
       begin
         status_holder[:done] = false
         future = Native.wgpuInstanceRequestAdapter(instance.handle, options, callback_info)
-        AsyncWaiter.wait(status_holder: status_holder, instance: instance, future: future)
+        AsyncWaiter.wait(status_holder: status_holder, instance: instance, future: future, timeout: timeout)
       ensure
         CallbackKeepalive.release(instance, callback_token)
       end
@@ -76,16 +77,23 @@ module WGPU
       @instance = instance
     end
 
-    def request_device(label: nil, required_features: [], required_limits: nil)
-      Device.request(self, label: label, required_features: required_features, required_limits: required_limits)
+    def request_device(label: nil, required_features: [], required_limits: nil, timeout: nil)
+      Device.request(
+        self,
+        label: label,
+        required_features: required_features,
+        required_limits: required_limits,
+        timeout: timeout
+      )
     end
 
-    def request_device_async(label: nil, required_features: [], required_limits: nil)
+    def request_device_async(label: nil, required_features: [], required_limits: nil, timeout: nil)
       AsyncTask.new do
         request_device(
           label: label,
           required_features: required_features,
-          required_limits: required_limits
+          required_limits: required_limits,
+          timeout: timeout
         )
       end
     end

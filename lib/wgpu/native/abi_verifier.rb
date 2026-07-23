@@ -4,6 +4,9 @@ module WGPU
   module Native
     class AbiVerifier
       FORCE32_KEY = "force32"
+      EXTENSION_ENTRIES = {
+        "SType" => %w[invalid shadersourceglsl]
+      }.freeze
 
       def initialize(header_path: nil, native: Native)
         @header_path = header_path || self.class.default_header_path
@@ -48,9 +51,11 @@ module WGPU
 
       def parse_header
         source = File.read(@header_path)
-        source.scan(/typedef enum WGPU(\w+)\s*\{(.*?)\}\s*WGPU\1;/m).to_h do |name, body|
+        source.scan(
+          /typedef enum WGPU(\w+)\s*\{(.*?)\}\s*WGPU\1(?:\s+WGPU_ENUM_ATTRIBUTE)?;/m
+        ).to_h do |name, body|
           entries = body.scan(
-            /WGPU#{Regexp.escape(name)}_([A-Za-z0-9]+)\s*=\s*(0x[0-9A-Fa-f]+|\d+)/
+            /WGPU#{Regexp.escape(name)}_([A-Za-z0-9_]+)\s*=\s*(0x[0-9A-Fa-f]+|\d+)/
           ).to_h { |entry, value| [normalize(entry), Integer(value)] }
           entries.delete(FORCE32_KEY)
           [name, entries]
@@ -69,12 +74,13 @@ module WGPU
       end
 
       def normalize(name)
-        name.to_s.delete("_").downcase
+        normalized = name.to_s.delete("_").downcase
+        normalized.sub(/\A([123])d/, 'd\1')
       end
 
       def compare_enum(name, ruby_mapping, header_mapping)
         missing = header_mapping.keys - ruby_mapping.keys
-        extra = ruby_mapping.keys - header_mapping.keys
+        extra = ruby_mapping.keys - header_mapping.keys - EXTENSION_ENTRIES.fetch(name, [])
         wrong = (header_mapping.keys & ruby_mapping.keys).filter_map do |key|
           next if header_mapping[key] == ruby_mapping[key]
 

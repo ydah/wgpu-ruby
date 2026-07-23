@@ -15,7 +15,7 @@ module WGPU
              [:pointer, ErrorType, StringView.by_value, :pointer, :pointer], :void
 
     callback :device_lost_callback,
-             [:pointer, :uint32, StringView.by_value, :pointer, :pointer], :void
+             [:pointer, DeviceLostReason, StringView.by_value, :pointer, :pointer], :void
 
     callback :pop_error_scope_callback,
              [PopErrorScopeStatus, ErrorType, StringView.by_value, :pointer, :pointer], :void

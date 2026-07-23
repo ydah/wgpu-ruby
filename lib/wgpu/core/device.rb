@@ -6,9 +6,14 @@ module WGPU
 
     LIMIT_FIELDS = Native::Limits.members.freeze
 
-    def self.request(adapter, label: nil, required_features: [], required_limits: nil)
+    def self.request(adapter, label: nil, required_features: [], required_limits: nil, timeout: nil)
       device_ptr = FFI::MemoryPointer.new(:pointer)
       status_holder = { done: false, value: nil, message: nil }
+      device_callback_state = {
+        mutex: Mutex.new,
+        uncaptured_error: nil,
+        device_lost: nil
+      }
 
       callback = FFI::Function.new(
         :void, [:uint32, :pointer, Native::StringView.by_value, :pointer, :pointer]
@@ -28,14 +33,16 @@ module WGPU
 
       device_lost_info = Native::DeviceLostCallbackInfo.new
       device_lost_info[:next_in_chain] = nil
-      device_lost_info[:mode] = 0
-      device_lost_info[:callback] = nil
+      device_lost_info[:mode] = AsyncWaiter.callback_mode(instance: adapter.instance)
+      device_lost_callback = build_device_lost_callback(device_callback_state)
+      device_lost_info[:callback] = device_lost_callback
       device_lost_info[:userdata1] = nil
       device_lost_info[:userdata2] = nil
 
       error_info = Native::UncapturedErrorCallbackInfo.new
       error_info[:next_in_chain] = nil
-      error_info[:callback] = nil
+      uncaptured_error_callback = build_uncaptured_error_callback(device_callback_state)
+      error_info[:callback] = uncaptured_error_callback
       error_info[:userdata1] = nil
       error_info[:userdata2] = nil
 
@@ -77,7 +84,12 @@ module WGPU
       callback_token = CallbackKeepalive.retain(adapter, callback)
       begin
         future = Native.wgpuAdapterRequestDevice(adapter.handle, desc, callback_info)
-        AsyncWaiter.wait(status_holder: status_holder, instance: adapter.instance, future: future)
+        AsyncWaiter.wait(
+          status_holder: status_holder,
+          instance: adapter.instance,
+          future: future,
+          timeout: timeout
+        )
       ensure
         CallbackKeepalive.release(adapter, callback_token)
       end
@@ -88,12 +100,22 @@ module WGPU
         raise DeviceError, "Failed to request device: #{msg}"
       end
 
-      new(handle, adapter: adapter)
+      device = new(handle, adapter: adapter, label: label, callback_state: device_callback_state)
+      device.retain_device_callback(device_lost_callback)
+      device.retain_device_callback(uncaptured_error_callback)
+      device
     end
 
-    def initialize(handle, adapter: nil)
+    def initialize(handle, adapter: nil, label: nil, callback_state: nil)
       @handle = handle
       @adapter = adapter
+      @label = label
+      @device_callback_state = callback_state || {
+        mutex: Mutex.new,
+        uncaptured_error: nil,
+        device_lost: nil
+      }
+      @device_callback_tokens = []
       @queue = Queue.new(Native.wgpuDeviceGetQueue(@handle), device: self)
     end
 
@@ -258,7 +280,7 @@ module WGPU
       Native.wgpuDevicePushErrorScope(@handle, filter_value)
     end
 
-    def pop_error_scope
+    def pop_error_scope(timeout: nil)
       error_holder = { done: false, status: nil, type: nil, message: nil }
 
       callback = FFI::Function.new(
@@ -282,7 +304,13 @@ module WGPU
       callback_token = CallbackKeepalive.retain(self, callback)
       begin
         future = Native.wgpuDevicePopErrorScope(@handle, callback_info)
-        AsyncWaiter.wait(status_holder: error_holder, instance: @adapter&.instance, device: self, future: future)
+        AsyncWaiter.wait(
+          status_holder: error_holder,
+          instance: @adapter&.instance,
+          device: self,
+          future: future,
+          timeout: timeout
+        )
       ensure
         CallbackKeepalive.release(self, callback_token)
       end
@@ -290,18 +318,34 @@ module WGPU
       error_holder
     end
 
-    def pop_error_scope_async
-      AsyncTask.new { pop_error_scope }
+    def pop_error_scope_async(timeout: nil)
+      AsyncTask.new { pop_error_scope(timeout: timeout) }
+    end
+
+    def pop_error_scope_typed(timeout: nil)
+      GPUError.from_hash(pop_error_scope(timeout: timeout))
     end
 
     def with_error_scope(filter = :validation)
       push_error_scope(filter)
       result = yield
-      error = pop_error_scope
-      if error[:type] && error[:type] != :no_error
-        raise Error, "GPU error (#{error[:type]}): #{error[:message]}"
-      end
+      error = GPUError.from_hash(pop_error_scope)
+      error&.raise!
       result
+    end
+
+    def on_uncaptured_error(&handler)
+      raise ArgumentError, "on_uncaptured_error requires a block" unless handler
+
+      set_device_callback(:uncaptured_error, handler)
+      self
+    end
+
+    def on_device_lost(&handler)
+      raise ArgumentError, "on_device_lost requires a block" unless handler
+
+      set_device_callback(:device_lost, handler)
+      self
     end
 
     def destroy
@@ -314,6 +358,8 @@ module WGPU
       return if @handle.null?
       Native.wgpuDeviceRelease(@handle)
       @handle = FFI::Pointer::NULL
+      Array(@device_callback_tokens).each { |token| CallbackKeepalive.release(self, token) }
+      @device_callback_tokens&.clear
     end
 
     def self.normalize_required_features(required_features)
@@ -359,10 +405,58 @@ module WGPU
       raise ArgumentError, "Unknown limit key: #{name}"
     end
 
+    def self.build_uncaptured_error_callback(state)
+      FFI::Function.new(
+        :void, [:pointer, :uint32, Native::StringView.by_value, :pointer, :pointer]
+      ) do |_device, type, message, _userdata1, _userdata2|
+        error = GPUError.new(
+          type: Native::ErrorType[type] || :unknown,
+          message: string_from_callback(message)
+        )
+        dispatch_device_callback(state, :uncaptured_error, error) do
+          warn "Uncaptured GPU error (#{error.type}): #{error.message}"
+        end
+      end
+    end
+
+    def self.build_device_lost_callback(state)
+      FFI::Function.new(
+        :void, [:pointer, :uint32, Native::StringView.by_value, :pointer, :pointer]
+      ) do |_device, reason, message, _userdata1, _userdata2|
+        reason_name = Native::DeviceLostReason[reason] || :unknown
+        message_text = string_from_callback(message)
+        dispatch_device_callback(state, :device_lost, reason_name, message_text) do
+          warn "GPU device lost (#{reason_name}): #{message_text}" unless reason_name == :destroyed
+        end
+      end
+    end
+
+    def self.dispatch_device_callback(state, key, *args)
+      handler = state[:mutex].synchronize { state[key] }
+      handler ? handler.call(*args) : yield
+    rescue StandardError => e
+      warn "WGPU #{key} handler failed: #{e.class}: #{e.message}"
+    end
+
+    def self.string_from_callback(message)
+      return "" if message[:data].nil? || message[:data].null? || message[:length].zero?
+
+      message[:data].read_string(message[:length])
+    end
+
     private_class_method :normalize_required_features, :normalize_feature_name,
-      :build_required_limits, :canonical_limit_key
+      :build_required_limits, :canonical_limit_key, :build_uncaptured_error_callback,
+      :build_device_lost_callback, :dispatch_device_callback, :string_from_callback
 
     private
+
+    def retain_device_callback(callback)
+      @device_callback_tokens << CallbackKeepalive.retain(self, callback)
+    end
+
+    def set_device_callback(name, handler)
+      @device_callback_state[:mutex].synchronize { @device_callback_state[name] = handler }
+    end
 
     def limits_to_hash(limits)
       {

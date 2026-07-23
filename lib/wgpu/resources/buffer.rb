@@ -56,9 +56,9 @@ module WGPU
       @mapped = false
     end
 
-    def map_sync(mode, offset: 0, size: nil)
+    def map_sync(mode, offset: 0, size: nil, timeout: nil)
       status_holder, callback_token, future = begin_map_request(mode, offset: offset, size: size)
-      wait_for_map(status_holder, future)
+      wait_for_map(status_holder, future, timeout:)
       finalize_map(status_holder)
     ensure
       CallbackKeepalive.release(self, callback_token)
@@ -186,12 +186,13 @@ module WGPU
       [status_holder, callback_token, future]
     end
 
-    def wait_for_map(status_holder, future)
+    def wait_for_map(status_holder, future, timeout: nil)
       AsyncWaiter.wait(
         status_holder: status_holder,
         instance: @device.adapter&.instance,
         device: @device,
-        future: future
+        future: future,
+        timeout: timeout
       )
     end
 
