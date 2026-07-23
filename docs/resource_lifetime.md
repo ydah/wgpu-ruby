@@ -11,9 +11,9 @@ Ruby finalizers.
   to `FFI::Pointer::NULL`; calling `release` again is harmless.
 - `destroy` immediately invalidates the underlying GPU resource contents but
   does not give up the wrapper's reference. Call `release` after `destroy`.
-- At this baseline, calling other methods after `release` is unsupported and
-  may pass a null handle to native code. Do not rely on it raising a Ruby
-  exception.
+- Calling another public native operation after `release` raises
+  `WGPU::ResourceError` before FFI is entered. `handle`, `released?`, `label`,
+  `inspect`, and repeated `release` remain available.
 
 ## Wrapper matrix
 
@@ -73,3 +73,11 @@ attempt to retain or release this internal buffer.
 The readback helpers' cleanup behavior on exceptions is tracked separately;
 until ensure-based cleanup is present, prefer explicit copy/map operations when
 injecting exceptions or aborting reads.
+
+## Leak diagnostics
+
+Set `WGPU_DEBUG_LEAKS=1` before requiring the gem, or set
+`WGPU.debug_leaks = true` before creating resources, to enable warnings.
+Unreleased resources are reported with their wrapper class and label during GC
+or process exit. The detector never releases a native handle; it is diagnostic
+only and is disabled by default.
