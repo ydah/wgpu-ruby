@@ -31,8 +31,7 @@ module WGPU
     end
 
     def self.from_handle(handle, surface_status: nil)
-      texture = allocate
-      texture.instance_variable_set(:@handle, handle)
+      texture = adopt_native_handle(handle)
       texture.instance_variable_set(:@device, nil)
       texture.instance_variable_set(:@surface_status, surface_status)
       texture

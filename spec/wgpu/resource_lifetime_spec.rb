@@ -38,4 +38,19 @@ RSpec.describe "resource lifetime", :skip_gpu_check do
     expect(WGPU::Native).to have_received(:wgpuTextureDestroy).with(handle).once
     expect(texture.handle).to eq(handle)
   end
+
+  it "registers wrappers created from adopted native handles" do
+    allow(WGPU::LeakTracker).to receive(:register)
+
+    resources = [
+      WGPU::Adapter.from_handle(handle),
+      WGPU::Texture.from_handle(handle),
+      WGPU::TextureView.from_handle(handle),
+      WGPU::BindGroupLayout.from_handle(handle)
+    ]
+
+    expect(WGPU::LeakTracker).to have_received(:register).exactly(4).times
+    expect(resources.map(&:handle)).to all(eq(handle))
+    expect(resources).to all(satisfy { |resource| !resource.released? })
+  end
 end

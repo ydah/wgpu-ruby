@@ -96,12 +96,22 @@ module WGPU
   module NativeResource
     GUARDED_METHOD_EXEMPTIONS = [:initialize, :release, :released?, :handle, :label, :inspect].freeze
 
+    module ClassMethods
+      private
+
+      def adopt_native_handle(handle, label: nil)
+        resource = allocate
+        resource.send(:initialize_native_resource, handle: handle, label: label)
+      end
+    end
+
     module Lifecycle
+      UNSET = Object.new.freeze
+      private_constant :UNSET
+
       def initialize(*args, **kwargs, &block)
         super
-        @released = false
-        @label = kwargs[:label] if kwargs.key?(:label)
-        LeakTracker.register(self)
+        initialize_native_resource(label: kwargs.fetch(:label, UNSET))
       end
 
       def release(...)
@@ -111,6 +121,16 @@ module WGPU
         @released = true
         LeakTracker.unregister(self)
         result
+      end
+
+      private
+
+      def initialize_native_resource(handle: UNSET, label: UNSET)
+        @handle = handle unless handle.equal?(UNSET)
+        @label = label unless label.equal?(UNSET)
+        @released = false
+        LeakTracker.register(self)
+        self
       end
     end
 
@@ -124,6 +144,7 @@ module WGPU
           super(*args, **kwargs, &block)
         end
       end
+      base.extend(ClassMethods)
       base.prepend(guard)
       base.prepend(Lifecycle)
     end

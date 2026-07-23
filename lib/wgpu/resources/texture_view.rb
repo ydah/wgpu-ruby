@@ -43,8 +43,7 @@ module WGPU
     end
 
     def self.from_handle(handle)
-      view = allocate
-      view.instance_variable_set(:@handle, handle)
+      view = adopt_native_handle(handle)
       view.instance_variable_set(:@texture, nil)
       view
     end

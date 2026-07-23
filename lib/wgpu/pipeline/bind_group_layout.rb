@@ -5,8 +5,7 @@ module WGPU
     attr_reader :handle
 
     def self.from_handle(handle)
-      layout = allocate
-      layout.instance_variable_set(:@handle, handle)
+      layout = adopt_native_handle(handle)
       layout.instance_variable_set(:@device, nil)
       layout
     end

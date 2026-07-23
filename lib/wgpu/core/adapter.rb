@@ -5,8 +5,7 @@ module WGPU
     attr_reader :handle, :instance
 
     def self.from_handle(handle, instance: nil)
-      adapter = allocate
-      adapter.instance_variable_set(:@handle, handle)
+      adapter = adopt_native_handle(handle)
       adapter.instance_variable_set(:@instance, instance)
       adapter
     end
