@@ -5,6 +5,9 @@ module WGPU
   type flags = enum_value | Array[Symbol]
   type data = String | Array[Numeric] | untyped
   type extent_3d = Hash[Symbol, Integer] | Array[Integer]
+  type texture_copy = Hash[Symbol, untyped]
+  type texture_data_layout = Hash[Symbol, Integer]
+  type configuration = Hash[Symbol, untyped]
 
   def self.log_level: () -> Symbol
   def self.log_level=: (enum_value) -> enum_value
@@ -70,6 +73,9 @@ module WGPU
     attr_reader type: Symbol
     attr_reader message: String
 
+    # Creates a typed GPU error with its native category and diagnostic message.
+    def initialize: (Symbol type, String message) -> void
+                  | (type: Symbol, message: String) -> void
     def self.from_hash: (Hash[Symbol, untyped]? error) -> GPUError?
     def exception_class: () -> singleton(Error)
     def raise!: () -> bot
@@ -92,6 +98,7 @@ module WGPU
     attr_reader label: String?
     def released?: () -> bool
     def use: [A] () { (self) -> A } -> A
+    # Releases the native handle and unregisters its leak-tracking entry.
     def release: () -> void
   end
 
@@ -130,8 +137,10 @@ module WGPU
     include NativeResource
     attr_reader handle: untyped
     def initialize: () -> void
-    def request_adapter: (**untyped) -> Adapter
-    def request_adapter_async: (**untyped) -> AsyncTask[Adapter]
+    def request_adapter: (?power_preference: enum_value, ?backend: enum_value?, ?feature_level: enum_value, ?force_fallback_adapter: bool, ?compatible_surface: Surface?, ?timeout: Numeric?) -> Adapter
+                       | (**untyped) -> Adapter
+    def request_adapter_async: (?power_preference: enum_value, ?backend: enum_value?, ?feature_level: enum_value, ?force_fallback_adapter: bool, ?compatible_surface: Surface?, ?timeout: Numeric?) -> AsyncTask[Adapter]
+                             | (**untyped) -> AsyncTask[Adapter]
     def enumerate_adapters: (?backends: flags?) -> Array[Adapter]
     def enumerate_adapters_async: (?backends: flags?) -> AsyncTask[Array[Adapter]]
     def get_canvas_context: (Hash[Symbol, untyped]) -> CanvasContext
@@ -143,8 +152,12 @@ module WGPU
     attr_reader handle: untyped
     attr_reader instance: Instance?
     def self.from_handle: (untyped, ?instance: Instance?) -> Adapter
-    def request_device: (**untyped) -> Device
-    def request_device_async: (**untyped) -> AsyncTask[Device]
+    def self.request: (Instance, ?power_preference: enum_value, ?backend: enum_value?, ?feature_level: enum_value, ?force_fallback_adapter: bool, ?compatible_surface: Surface?, ?timeout: Numeric?) -> Adapter
+                    | (Instance, **untyped) -> Adapter
+    def request_device: (?label: String?, ?required_features: Array[enum_value], ?required_limits: Hash[Symbol, Integer]?, ?timeout: Numeric?) -> Device
+                      | (**untyped) -> Device
+    def request_device_async: (?label: String?, ?required_features: Array[enum_value], ?required_limits: Hash[Symbol, Integer]?, ?timeout: Numeric?) -> AsyncTask[Device]
+                            | (**untyped) -> AsyncTask[Device]
     def info: () -> Hash[Symbol, untyped]
     def name: () -> String
     def vendor: () -> String
@@ -161,6 +174,8 @@ module WGPU
     attr_reader handle: untyped
     attr_reader queue: Queue
     attr_reader adapter: Adapter?
+    def self.request: (Adapter, ?label: String?, ?required_features: Array[enum_value], ?required_limits: Hash[Symbol, Integer]?, ?timeout: Numeric?) -> Device
+                    | (Adapter, **untyped) -> Device
     def adapter_info: () -> Hash[Symbol, untyped]?
     def create_buffer: (?label: String?, size: Integer, usage: flags, ?mapped_at_creation: bool) -> Buffer
     def create_buffer_with_data: (?label: String?, data: data, usage: flags, ?type: Symbol) -> Buffer
@@ -183,6 +198,7 @@ module WGPU
     def poll: (?wait: bool) -> Integer
     def push_error_scope: (?enum_value) -> void
     def pop_error_scope: (?timeout: Numeric?) -> Hash[Symbol, untyped]
+    def pop_error_scope_async: (?timeout: Numeric?) -> AsyncTask[Hash[Symbol, untyped]]
     def pop_error_scope_typed: (?timeout: Numeric?) -> GPUError?
     def with_error_scope: [A] (?enum_value) { () -> A } -> A
     def on_uncaptured_error: () { (GPUError) -> void } -> self
@@ -197,7 +213,8 @@ module WGPU
     def write_buffer: (Buffer, Integer, data, ?data_offset: Integer, ?size: Integer?, ?type: Symbol) -> void
     def write_texture: (**untyped) -> void
     def read_buffer: (Buffer, ?offset: Integer, ?size: Integer?, ?device: Device?, ?staging: Buffer?) -> String
-    def read_texture: (**untyped) -> String
+    def read_texture: (source: texture_copy, data_layout: texture_data_layout, size: extent_3d, ?device: Device?, ?staging: Buffer?) -> String
+                    | (**untyped) -> String
     def on_submitted_work_done: (?device: Device?, ?timeout: Numeric?) -> Symbol
     def on_submitted_work_done_async: (?device: Device?, ?timeout: Numeric?) -> AsyncTask[Symbol]
   end
@@ -216,6 +233,12 @@ module WGPU
     def read_mapped_data: (?offset: Integer, ?size: Integer?) -> String
     def read_mapped: (?offset: Integer, ?size: Integer?, ?type: Symbol?) -> (String | Array[Numeric])
     def write_mapped: (data, ?offset: Integer, ?type: Symbol) -> void
+    def read_mapped_floats: (?offset: Integer, ?count: Integer?) -> Array[Float]
+    def read_mapped_uint32s: (?offset: Integer, ?count: Integer?) -> Array[Integer]
+    def read_mapped_int32s: (?offset: Integer, ?count: Integer?) -> Array[Integer]
+    def read_mapped_float64s: (?offset: Integer, ?count: Integer?) -> Array[Float]
+    def read_mapped_uint16s: (?offset: Integer, ?count: Integer?) -> Array[Integer]
+    def read_mapped_uint8s: (?offset: Integer, ?count: Integer?) -> Array[Integer]
     def read_mapped_values: (?type: Symbol, ?offset: Integer, ?count: Integer?) -> Array[Numeric]
     def map_state: () -> Symbol
     def destroy: () -> void
@@ -228,6 +251,14 @@ module WGPU
     def write_floats: (Array[Numeric]) -> void
     def read_uint32s: (?Integer?) -> Array[Integer]
     def write_uint32s: (Array[Integer]) -> void
+    def read_int32s: (?Integer?) -> Array[Integer]
+    def write_int32s: (Array[Integer]) -> void
+    def read_float64s: (?Integer?) -> Array[Float]
+    def write_float64s: (Array[Numeric]) -> void
+    def read_uint16s: (?Integer?) -> Array[Integer]
+    def write_uint16s: (Array[Integer]) -> void
+    def read_uint8s: (?Integer?) -> Array[Integer]
+    def write_uint8s: (Array[Integer]) -> void
     def read_bytes: () -> String
     def write_bytes: (String) -> void
   end
@@ -236,6 +267,7 @@ module WGPU
     include NativeResource
     attr_reader handle: untyped
     attr_reader surface_status: Symbol?
+    def self.from_handle: (untyped, ?surface_status: Symbol?) -> Texture
     def create_view: (**untyped) -> TextureView
     def width: () -> Integer
     def height: () -> Integer
@@ -252,6 +284,9 @@ module WGPU
   class TextureView
     include NativeResource
     attr_reader handle: untyped
+    attr_reader texture: Texture?
+    def self.from_handle: (untyped) -> TextureView
+    def size: () -> Hash[Symbol, Integer]?
   end
 
   class Sampler
@@ -315,6 +350,9 @@ module WGPU
     def resolve_query_set: (**untyped) -> void
     def clear_buffer: (Buffer, ?offset: Integer, ?size: Integer?) -> void
     def write_timestamp: (QuerySet, Integer) -> void
+    def push_debug_group: (String) -> void
+    def pop_debug_group: () -> void
+    def insert_debug_marker: (String) -> void
     def finish: (?label: String?) -> CommandBuffer
   end
 
@@ -331,6 +369,9 @@ module WGPU
     def set_bind_group: (Integer, BindGroup, ?dynamic_offsets: Array[Integer]) -> void
     def dispatch_workgroups: (Integer, ?Integer, ?Integer) -> void
     def dispatch_workgroups_indirect: (Buffer, ?offset: Integer) -> void
+    def push_debug_group: (String) -> void
+    def pop_debug_group: () -> void
+    def insert_debug_marker: (String) -> void
     def end_pass: () -> void
     def end: () -> void
     def ended?: () -> bool
@@ -345,6 +386,18 @@ module WGPU
     def set_index_buffer: (Buffer, enum_value, ?offset: Integer, ?size: Integer?) -> void
     def draw: (Integer, ?instance_count: Integer, ?first_vertex: Integer, ?first_instance: Integer) -> void
     def draw_indexed: (Integer, **untyped) -> void
+    def set_viewport: (Numeric, Numeric, Numeric, Numeric, ?min_depth: Numeric, ?max_depth: Numeric) -> void
+    def set_scissor_rect: (Integer, Integer, Integer, Integer) -> void
+    def set_blend_constant: (?r: Numeric, ?g: Numeric, ?b: Numeric, ?a: Numeric) -> void
+    def set_stencil_reference: (Integer) -> void
+    def draw_indirect: (Buffer, ?offset: Integer) -> void
+    def draw_indexed_indirect: (Buffer, ?offset: Integer) -> void
+    def execute_bundles: (Array[RenderBundle]) -> void
+    def begin_occlusion_query: (Integer) -> void
+    def end_occlusion_query: () -> void
+    def push_debug_group: (String) -> void
+    def pop_debug_group: () -> void
+    def insert_debug_marker: (String) -> void
     def end_pass: () -> void
     def end: () -> void
     def ended?: () -> bool
@@ -353,6 +406,17 @@ module WGPU
   class RenderBundleEncoder
     include NativeResource
     attr_reader handle: untyped
+    def set_pipeline: (RenderPipeline) -> void
+    def set_bind_group: (Integer, BindGroup, ?dynamic_offsets: Array[Integer]?) -> void
+    def set_vertex_buffer: (Integer, Buffer, ?offset: Integer, ?size: Integer?) -> void
+    def set_index_buffer: (Buffer, ?format: enum_value, ?offset: Integer, ?size: Integer?) -> void
+    def draw: (Integer, ?instance_count: Integer, ?first_vertex: Integer, ?first_instance: Integer) -> void
+    def draw_indexed: (Integer, ?instance_count: Integer, ?first_index: Integer, ?base_vertex: Integer, ?first_instance: Integer) -> void
+    def draw_indirect: (Buffer, ?offset: Integer) -> void
+    def draw_indexed_indirect: (Buffer, ?offset: Integer) -> void
+    def push_debug_group: (String) -> void
+    def pop_debug_group: () -> void
+    def insert_debug_marker: (String) -> void
     def finish: (?label: String?) -> RenderBundle
   end
 
@@ -364,15 +428,26 @@ module WGPU
   class Surface
     include NativeResource
     attr_reader handle: untyped
+    def self.from_metal_layer: (Instance, untyped) -> Surface
+    def self.from_windows_hwnd: (Instance, untyped, untyped) -> Surface
+    def self.from_xlib_window: (Instance, untyped, Integer) -> Surface
+    def self.from_wayland_surface: (Instance, untyped, untyped) -> Surface
     def configure: (**untyped) -> void
     def unconfigure: () -> void
     def current_texture: () -> Texture
+    def get_current_texture: () -> Texture
     def present: () -> void
+    def get_configuration: () -> configuration?
+    def get_preferred_format: (Adapter) -> Symbol
     def capabilities: (Adapter) -> Hash[Symbol, untyped]
   end
 
   class CanvasContext
     include NativeResource
+    attr_reader physical_size: [Integer, Integer]
+    def set_physical_size: (Integer, Integer) -> [Integer, Integer]
+    def get_preferred_format: (Adapter) -> Symbol
+    def get_configuration: () -> configuration?
     def configure: (**untyped) -> void
     def unconfigure: () -> void
     def get_current_texture: () -> Texture
