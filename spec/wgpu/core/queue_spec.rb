@@ -154,6 +154,22 @@ RSpec.describe WGPU::Queue, :gpu do
       expect(result.bytesize).to eq(8)
       buffer.release
     end
+
+    it "reuses caller-owned staging through the queue's owning device" do
+      buffer = device.create_buffer_with_data(
+        data: [1.0, 2.0, 3.0, 4.0],
+        usage: [:copy_src]
+      )
+      staging = device.create_buffer(size: 16, usage: %i[map_read copy_dst])
+
+      results = 2.times.map { queue.read_buffer(buffer, staging: staging) }
+
+      expect(results).to all(eq([1.0, 2.0, 3.0, 4.0].pack("f*")))
+      expect(staging).not_to be_released
+    ensure
+      staging&.release
+      buffer&.release
+    end
   end
 
   describe "#read_texture" do
@@ -182,6 +198,50 @@ RSpec.describe WGPU::Queue, :gpu do
       expect(result).to be_a(String)
       expect(result.bytesize).to eq(256 * 64)
       texture.release
+    end
+
+    it "reuses caller-owned staging for an unaligned texture width" do
+      width = 65
+      height = 2
+      bytes_per_row = WGPU::TextureFormat.aligned_bytes_per_row(width, :rgba8_unorm)
+      tight_bytes_per_row = WGPU::TextureFormat.bytes_per_row(width, :rgba8_unorm)
+      row = ("\xFF\x00\x00\xFF" * width).b
+      upload = ((row + ("\0" * (bytes_per_row - tight_bytes_per_row))) * height).b
+      texture = device.create_texture(
+        size: { width: width, height: height },
+        format: :rgba8_unorm,
+        usage: %i[copy_dst copy_src]
+      )
+      staging = device.create_buffer(
+        size: bytes_per_row * height,
+        usage: %i[map_read copy_dst]
+      )
+      queue.write_texture(
+        destination: { texture: texture },
+        data: upload,
+        data_layout: { bytes_per_row: bytes_per_row, rows_per_image: height },
+        size: { width: width, height: height },
+        type: :u8
+      )
+
+      results = 2.times.map do
+        queue.read_texture(
+          source: { texture: texture },
+          data_layout: { bytes_per_row: bytes_per_row, rows_per_image: height },
+          size: { width: width, height: height },
+          staging: staging
+        )
+      end
+
+      results.each do |result|
+        height.times do |y|
+          expect(result.byteslice(y * bytes_per_row, tight_bytes_per_row)).to eq(row)
+        end
+      end
+      expect(staging).not_to be_released
+    ensure
+      staging&.release
+      texture&.release
     end
 
     {

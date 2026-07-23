@@ -42,7 +42,7 @@ end
 namespace :examples do
   desc "Run compute and render-to-texture examples suitable for headless CI"
   task :ci do
-    examples = Rake::FileList["examples/0[1-6]_*.rb", "examples/1[2-5]_*.rb"]
+    examples = Rake::FileList["examples/0[1-6]_*.rb", "examples/1[2-6]_*.rb"]
     examples.sort.each do |example|
       sh RbConfig.ruby, example
     end

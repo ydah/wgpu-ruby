@@ -81,9 +81,19 @@ does not itself release the command buffer or its referenced Ruby wrappers.
 ## Internal staging resources
 
 `Queue#read_buffer` and `Queue#read_texture` create a temporary staging buffer,
-submit a copy, map and read it, then unmap and release it. In the baseline
-implementation cleanup runs from `ensure`, including exceptional paths.
+submit a copy, map and read it, then unmap and release it. Cleanup independently
+attempts to unmap and release the command buffer, encoder, and internal staging
+buffer on every exit path, even when an earlier cleanup operation raises.
 Applications should not attempt to retain or release this internal buffer.
+
+For repeated readbacks, pass a caller-owned `staging:` buffer created by the
+same device. It must be unmapped, have `:map_read` and `:copy_dst` usage, and be
+large enough for the requested byte range (`read_buffer`) or padded copy
+footprint (`read_texture`). The queue unmaps it after each read but never
+releases it, so it can be reused and the caller remains responsible for its
+eventual release. A device-owned queue uses its owning device automatically;
+only queues constructed without an owner require the explicit `device:`
+keyword.
 
 ## Leak diagnostics
 

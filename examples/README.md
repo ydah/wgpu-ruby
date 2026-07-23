@@ -19,6 +19,7 @@ These do not require SDL3 and are suitable for a GPU/lavapipe CI worker:
 | `13_error_handling.rb` | Show labeled Ruby validation errors | Prints the typed error and passes. |
 | `14_async_map.rb` | Map a copied buffer asynchronously | Prints `[10, 20, 30, 40]` after a GC cycle. |
 | `15_timestamp_query.rb` | Resolve pass timestamps | Prints a non-negative tick delta, or an explicit unsupported skip. |
+| `16_texture_readback.rb` | Read back a 65-pixel-wide texture with aligned reusable staging | Prints 260-byte tight/512-byte aligned strides and `SUCCESS`. |
 
 Run all compute and headless examples:
 

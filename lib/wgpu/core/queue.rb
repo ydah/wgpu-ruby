@@ -90,6 +90,7 @@ module WGPU
       size ||= buffer.size - offset
       owns_staging = staging.nil?
       staging ||= Buffer.new(device, size: size, usage: [:map_read, :copy_dst])
+      validate_readback_staging!(staging, size)
       encoder = CommandEncoder.new(device)
       encoder.copy_buffer_to_buffer(
         source: buffer,
@@ -101,13 +102,18 @@ module WGPU
       command_buffer = encoder.finish
       submit([command_buffer])
 
+      map_requested = true
       staging.map_sync(:read)
       staging.read_mapped_data(size:)
     ensure
-      staging&.unmap if staging && staging.map_state == :mapped
-      command_buffer&.release
-      encoder&.release
-      staging&.release if owns_staging
+      cleanup_readback_resources(
+        staging:,
+        unmap_staging: map_requested,
+        owns_staging:,
+        command_buffer:,
+        encoder:,
+        active_error: $!
+      )
     end
 
     def read_texture(source:, data_layout:, size:, device: nil, staging: nil)
@@ -125,10 +131,12 @@ module WGPU
       )
       format = source[:format] || source[:texture].format
       aspect = source[:aspect] || :all
-      minimum_bytes_per_row = TextureFormat.bytes_per_row(width, format, aspect:)
+      tight_bytes_per_row = TextureFormat.bytes_per_row(width, format, aspect:)
+      minimum_bytes_per_row = TextureFormat.aligned_bytes_per_row(width, format, aspect:)
       if bytes_per_row < minimum_bytes_per_row
         raise ArgumentError,
-          "bytes_per_row must be at least #{minimum_bytes_per_row} for width #{width} and #{format.inspect}"
+          "bytes_per_row must be at least #{minimum_bytes_per_row} for width #{width} and #{format.inspect} " \
+          "(tight row is #{tight_bytes_per_row} bytes)"
       end
 
       rows_per_image = data_layout[:rows_per_image] || height
@@ -136,6 +144,7 @@ module WGPU
 
       owns_staging = staging.nil?
       staging ||= Buffer.new(device, size: buffer_size, usage: [:map_read, :copy_dst])
+      validate_readback_staging!(staging, buffer_size)
       encoder = CommandEncoder.new(device)
       encoder.copy_texture_to_buffer(
         source: source,
@@ -150,13 +159,18 @@ module WGPU
       command_buffer = encoder.finish
       submit([command_buffer])
 
+      map_requested = true
       staging.map_sync(:read)
       staging.read_mapped_data(size: buffer_size)
     ensure
-      staging&.unmap if staging && staging.map_state == :mapped
-      command_buffer&.release
-      encoder&.release
-      staging&.release if owns_staging
+      cleanup_readback_resources(
+        staging:,
+        unmap_staging: map_requested,
+        owns_staging:,
+        command_buffer:,
+        encoder:,
+        active_error: $!
+      )
     end
 
     def on_submitted_work_done(device: nil, timeout: nil)
@@ -215,6 +229,59 @@ module WGPU
       else
         [size.fetch(:width), size[:height] || 1, size[:depth_or_array_layers] || 1]
       end
+    end
+
+    def validate_readback_staging!(staging, required_size)
+      if staging.size < required_size
+        raise ArgumentError,
+          "staging buffer size must be at least #{required_size} bytes (got #{staging.size})"
+      end
+
+      required_usage = Native::BufferUsage.fetch(:map_read) | Native::BufferUsage.fetch(:copy_dst)
+      unless (staging.usage & required_usage) == required_usage
+        raise ArgumentError, "staging buffer usage must include :map_read and :copy_dst"
+      end
+
+      return if staging.map_state == :unmapped
+
+      raise ArgumentError, "staging buffer must be unmapped before readback"
+    end
+
+    def cleanup_readback_resources(
+      staging:,
+      unmap_staging:,
+      owns_staging:,
+      command_buffer:,
+      encoder:,
+      active_error:
+    )
+      cleanup_error = nil
+
+      begin
+        staging&.unmap if unmap_staging && staging && staging.map_state == :mapped
+      rescue StandardError => e
+        cleanup_error ||= e
+      ensure
+        begin
+          command_buffer&.release
+        rescue StandardError => e
+          cleanup_error ||= e
+        ensure
+          begin
+            encoder&.release
+          rescue StandardError => e
+            cleanup_error ||= e
+          ensure
+            begin
+              staging&.release if owns_staging
+            rescue StandardError => e
+              cleanup_error ||= e
+            end
+          end
+        end
+      end
+
+      raise cleanup_error if cleanup_error && active_error.nil?
     end
 
   end
