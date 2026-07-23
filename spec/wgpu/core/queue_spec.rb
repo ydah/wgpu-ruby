@@ -162,6 +162,45 @@ RSpec.describe WGPU::Queue, :gpu do
       expect(result.bytesize).to eq(256 * 64)
       texture.release
     end
+
+    {
+      "2D array layers" => :d2,
+      "3D depth slices" => :d3
+    }.each do |description, dimension|
+      it "round-trips #{description}" do
+        width = 64
+        height = 2
+        depth = 2
+        bytes_per_row = WGPU::TextureFormat.aligned_bytes_per_row(width, :rgba8_unorm)
+        texture = device.create_texture(
+          size: { width: width, height: height, depth_or_array_layers: depth },
+          dimension: dimension,
+          format: :rgba8_unorm,
+          usage: %i[copy_dst copy_src]
+        )
+        red_slice = ("\xFF\x00\x00\xFF" * width * height).b
+        green_slice = ("\x00\xFF\x00\xFF" * width * height).b
+
+        queue.write_texture(
+          destination: { texture: texture },
+          data: red_slice + green_slice,
+          data_layout: { bytes_per_row: bytes_per_row, rows_per_image: height },
+          size: { width: width, height: height, depth_or_array_layers: depth },
+          type: :u8
+        )
+        result = queue.read_texture(
+          source: { texture: texture },
+          data_layout: { bytes_per_row: bytes_per_row, rows_per_image: height },
+          size: { width: width, height: height, depth_or_array_layers: depth }
+        )
+
+        expect(result.byteslice(0, 4).bytes).to eq([255, 0, 0, 255])
+        second_slice_offset = bytes_per_row * height
+        expect(result.byteslice(second_slice_offset, 4).bytes).to eq([0, 255, 0, 255])
+      ensure
+        texture&.release
+      end
+    end
   end
 
   describe "#on_submitted_work_done_async" do
