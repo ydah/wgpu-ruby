@@ -84,6 +84,12 @@ module WGPU
       stage_descriptor[:constants] = constants_pointer
     end
 
+    # Checks required keys and warns about unsupported descriptor keys.
+    # @param options [Hash] descriptor options
+    # @param allowed [Array<Symbol>] supported keys
+    # @param required [Array<Symbol>] mandatory keys
+    # @return [Hash] original options
+    # @raise [ArgumentError] when required keys are missing
     def validate_keys!(options, allowed:, required: [], context: "descriptor")
       return options unless options.is_a?(Hash)
 

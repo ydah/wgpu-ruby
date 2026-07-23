@@ -4,6 +4,11 @@ module WGPU
   class BindGroup
     attr_reader :handle
 
+    # Creates bindings between shader slots and GPU resources.
+    # @param device [Device] owning device
+    # @param layout [BindGroupLayout] layout the entries must match
+    # @param entries [Array<Hash>] resource binding descriptors
+    # @raise [PipelineError] if native validation or creation fails
     def initialize(device, label: nil, layout:, entries:)
       @device = device
 

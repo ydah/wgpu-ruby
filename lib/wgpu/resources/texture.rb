@@ -4,6 +4,12 @@ module WGPU
   class Texture
     attr_reader :handle, :surface_status
 
+    # Creates a GPU texture.
+    # @param device [Device] owning device
+    # @param size [Hash, Array] texture extent
+    # @param format [Symbol, Integer] texel format
+    # @param usage [Symbol, Array<Symbol>, Integer] usage flags
+    # @raise [ResourceError] if native validation or creation fails
     def initialize(device, label: nil, size:, format:, usage:, dimension: :d2, mip_level_count: 1, sample_count: 1, view_formats: [])
       @device = device
 
@@ -42,6 +48,8 @@ module WGPU
       texture
     end
 
+    # Creates a view into this texture.
+    # @return [TextureView]
     def create_view(label: nil, format: nil, dimension: nil, base_mip_level: 0, mip_level_count: nil, base_array_layer: 0, array_layer_count: nil, aspect: :all, usage: nil)
       TextureView.new(self,
         label: label,
@@ -56,10 +64,14 @@ module WGPU
       )
     end
 
+    # Returns the texture width in texels.
+    # @return [Integer]
     def width
       Native.wgpuTextureGetWidth(@handle)
     end
 
+    # Returns the texture extent.
+    # @return [Hash{Symbol => Integer}]
     def size
       {
         width: width,
@@ -68,34 +80,50 @@ module WGPU
       }
     end
 
+    # Returns the texture height in texels.
+    # @return [Integer]
     def height
       Native.wgpuTextureGetHeight(@handle)
     end
 
+    # Returns the texture depth or array layer count.
+    # @return [Integer]
     def depth_or_array_layers
       Native.wgpuTextureGetDepthOrArrayLayers(@handle)
     end
 
+    # Returns the number of mip levels.
+    # @return [Integer]
     def mip_level_count
       Native.wgpuTextureGetMipLevelCount(@handle)
     end
 
+    # Returns the multisample count.
+    # @return [Integer]
     def sample_count
       Native.wgpuTextureGetSampleCount(@handle)
     end
 
+    # Returns the texture dimension.
+    # @return [Symbol, Integer]
     def dimension
       Native.wgpuTextureGetDimension(@handle)
     end
 
+    # Returns the texture format.
+    # @return [Symbol, Integer]
     def format
       Native.wgpuTextureGetFormat(@handle)
     end
 
+    # Returns the texture usage flags.
+    # @return [Integer]
     def usage
       Native.wgpuTextureGetUsage(@handle)
     end
 
+    # Destroys the texture's storage.
+    # @return [void]
     def destroy
       Native.wgpuTextureDestroy(@handle)
     end

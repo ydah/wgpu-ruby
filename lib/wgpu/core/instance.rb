@@ -4,6 +4,8 @@ module WGPU
   class Instance
     attr_reader :handle
 
+    # Creates a WebGPU instance.
+    # @raise [InitializationError] if native instance creation fails
     def initialize
       desc = Native::InstanceDescriptor.new
       desc[:next_in_chain] = nil
@@ -15,6 +17,8 @@ module WGPU
       raise InitializationError, "Failed to create WebGPU instance" if @handle.null?
     end
 
+    # Requests an adapter matching the supplied preferences.
+    # @return [Adapter]
     def request_adapter(power_preference: :high_performance, backend: nil, feature_level: :core,
                         force_fallback_adapter: false, compatible_surface: nil, timeout: nil)
       Adapter.request(
@@ -28,6 +32,8 @@ module WGPU
       )
     end
 
+    # Requests an adapter on a background task.
+    # @return [AsyncTask] task yielding an {Adapter}
     def request_adapter_async(power_preference: :high_performance, backend: nil, feature_level: :core,
                               force_fallback_adapter: false, compatible_surface: nil, timeout: nil)
       AsyncTask.new do
@@ -42,6 +48,9 @@ module WGPU
       end
     end
 
+    # Lists adapters exposed by the instance.
+    # @param backends [Integer, nil] backend bit mask
+    # @return [Array<Adapter>]
     def enumerate_adapters(backends: nil)
       options = nil
       if backends
@@ -61,16 +70,23 @@ module WGPU
       end
     end
 
+    # Enumerates adapters on a background task.
+    # @return [AsyncTask] task yielding adapter objects
     def enumerate_adapters_async(backends: nil)
       AsyncTask.new do
         enumerate_adapters(backends: backends)
       end
     end
 
+    # Creates a canvas context from platform presentation information.
+    # @param present_info [Hash] platform surface information
+    # @return [CanvasContext]
     def get_canvas_context(present_info)
       CanvasContext.new(self, present_info)
     end
 
+    # Processes pending instance callbacks and events.
+    # @return [void]
     def process_events
       Native.wgpuInstanceProcessEvents(@handle)
     end

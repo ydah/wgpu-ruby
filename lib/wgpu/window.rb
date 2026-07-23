@@ -22,6 +22,11 @@ module WGPU
       SDL_PROP_WINDOW_WAYLAND_DISPLAY_POINTER = "SDL.window.wayland.display"
       SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER = "SDL.window.wayland.surface"
 
+      # Creates an SDL window suitable for WebGPU presentation.
+      # @param title [String] window title
+      # @param width [Integer] initial logical width
+      # @param height [Integer] initial logical height
+      # @param resizable [Boolean] whether the user may resize the window
       def initialize(title:, width: 800, height: 600, resizable: true)
         @width = width
         @height = height
@@ -66,10 +71,17 @@ module WGPU
         events
       end
 
+      # Reports whether a quit event is present.
+      # @param events [Array] SDL events to inspect
+      # @return [Boolean]
       def should_close?(events)
         events.any?(&:quit?)
       end
 
+      # Reports whether a key-down event matches the requested key.
+      # @param events [Array] SDL events to inspect
+      # @param key [Symbol, Integer] common key name or SDL scancode
+      # @return [Boolean]
       def key_pressed?(events, key)
         scancode = case key
                    when :escape then SDL3::Raw::SDL_SCANCODE_ESCAPE

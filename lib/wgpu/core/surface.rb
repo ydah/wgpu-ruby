@@ -4,6 +4,9 @@ module WGPU
   class Surface
     attr_reader :handle
 
+    # Creates a surface backed by a Core Animation Metal layer.
+    # @return [Surface]
+    # @raise [SurfaceError] if native surface creation fails
     def self.from_metal_layer(instance, layer)
       source = Native::SurfaceSourceMetalLayer.new
       source[:chain][:next] = nil
@@ -21,6 +24,9 @@ module WGPU
       new(handle, instance)
     end
 
+    # Creates a surface backed by a Windows window handle.
+    # @return [Surface]
+    # @raise [SurfaceError] if native surface creation fails
     def self.from_windows_hwnd(instance, hinstance, hwnd)
       source = Native::SurfaceSourceWindowsHWND.new
       source[:chain][:next] = nil
@@ -39,6 +45,9 @@ module WGPU
       new(handle, instance)
     end
 
+    # Creates a surface backed by an Xlib window.
+    # @return [Surface]
+    # @raise [SurfaceError] if native surface creation fails
     def self.from_xlib_window(instance, display, window)
       source = Native::SurfaceSourceXlibWindow.new
       source[:chain][:next] = nil
@@ -57,6 +66,9 @@ module WGPU
       new(handle, instance)
     end
 
+    # Creates a surface backed by a Wayland surface.
+    # @return [Surface]
+    # @raise [SurfaceError] if native surface creation fails
     def self.from_wayland_surface(instance, display, surface)
       source = Native::SurfaceSourceWaylandSurface.new
       source[:chain][:next] = nil
@@ -75,6 +87,9 @@ module WGPU
       new(handle, instance)
     end
 
+    # Wraps a native presentation surface.
+    # @param handle [FFI::Pointer] native surface handle
+    # @param instance [Instance] owning instance
     def initialize(handle, instance)
       @handle = handle
       @instance = instance
@@ -82,6 +97,8 @@ module WGPU
       @config = nil
     end
 
+    # Configures this surface for presentation by a device.
+    # @return [Hash] stored configuration
     def configure(device:, format:, usage: :render_attachment, width:, height:, present_mode: :fifo, alpha_mode: :auto, view_formats: [])
       config = Native::SurfaceConfiguration.new
       config[:next_in_chain] = nil
@@ -128,12 +145,18 @@ module WGPU
       }
     end
 
+    # Removes the current surface configuration.
+    # @return [void]
     def unconfigure
       Native.wgpuSurfaceUnconfigure(@handle)
       @configured = false
       @config = nil
     end
 
+    # Acquires the current surface texture.
+    # @return [Texture]
+    # @raise [SurfaceError] if unconfigured or no texture is returned
+    # @raise [SurfaceAcquisitionError] if the surface status is unsuccessful
     def current_texture
       raise SurfaceError, "Surface is not configured" unless @configured
 
@@ -162,6 +185,8 @@ module WGPU
       current_texture
     end
 
+    # Presents the current surface texture.
+    # @return [void]
     def present
       Native.wgpuSurfacePresent(@handle)
     end
@@ -182,6 +207,9 @@ module WGPU
       caps[:formats].first || :bgra8_unorm
     end
 
+    # Returns the formats, presentation modes, alpha modes, and usages supported by an adapter.
+    # @param adapter [Adapter] adapter to query
+    # @return [Hash]
     def capabilities(adapter)
       caps = Native::SurfaceCapabilities.new
       Native.wgpuSurfaceGetCapabilities(@handle, adapter.handle, caps)

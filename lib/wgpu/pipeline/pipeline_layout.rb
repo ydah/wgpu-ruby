@@ -4,6 +4,10 @@ module WGPU
   class PipelineLayout
     attr_reader :handle
 
+    # Creates a pipeline layout from ordered bind group layouts.
+    # @param device [Device] owning device
+    # @param bind_group_layouts [Array<BindGroupLayout>] layouts by group index
+    # @raise [PipelineError] if native validation or creation fails
     def initialize(device, label: nil, bind_group_layouts:)
       @device = device
 

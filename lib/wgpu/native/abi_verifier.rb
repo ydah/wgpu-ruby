@@ -22,11 +22,17 @@ module WGPU
         ]
       }.freeze
 
+      # Creates a verifier for a header and native binding.
+      # @param header_path [String, nil] header fixture to compare
+      # @param native [Module] native binding module
       def initialize(header_path: nil, native: Native)
         @header_path = header_path || self.class.default_header_path
         @native = native
       end
 
+      # Verifies the runtime version and Ruby enum ABI against the header.
+      # @return [true]
+      # @raise [WGPU::Error] when differences are detected
       def verify!
         differences = enum_differences
         version_difference = native_version_difference
@@ -49,6 +55,9 @@ module WGPU
         end
       end
 
+      # Locates the pinned header used for ABI verification.
+      # @return [String] absolute header path
+      # @raise [WGPU::Error] if no header is available
       def self.default_header_path
         override = ENV["WGPU_HEADER_PATH"]
         return File.expand_path(override) if override && !override.empty?

@@ -20,6 +20,9 @@ module WGPU
   class SurfaceAcquisitionError < SurfaceError
     attr_reader :status
 
+    # Creates an acquisition error for a native surface status.
+    # @param status [Symbol] native acquisition status
+    # @param message [String, nil] optional override message
     def initialize(status, message = nil)
       @status = status
       super(message || "Failed to get current surface texture: #{status}")
@@ -28,12 +31,17 @@ module WGPU
   class RenderBundleError < Error; end
 
   GPUError = Data.define(:type, :message) do
+    # Converts a native error-scope result into a typed error.
+    # @param error [Hash, nil] native error result
+    # @return [GPUError, nil]
     def self.from_hash(error)
       return if error.nil? || error[:type].nil? || error[:type] == :no_error
 
       new(type: error[:type], message: error[:message].to_s)
     end
 
+    # Returns the Ruby exception class matching this GPU error type.
+    # @return [Class<Error>]
     def exception_class
       {
         validation: ValidationError,
@@ -43,10 +51,15 @@ module WGPU
       }.fetch(type, Error)
     end
 
+    # Raises this error as its matching Ruby exception.
+    # @return [void]
+    # @raise [Error]
     def raise!
       raise exception_class, "GPU error (#{type}): #{message}"
     end
 
+    # Returns a serializable representation of the error.
+    # @return [Hash]
     def to_h
       { type:, message: }
     end
@@ -63,6 +76,8 @@ module WGPU
     alias line line_num
     alias column line_pos
 
+    # Formats the diagnostic with source location, severity, and message.
+    # @return [String]
     def to_s
       location = line_num&.positive? ? "#{line_num}:#{line_pos}" : "unknown location"
       "#{location}: #{type}: #{message}"

@@ -4,6 +4,12 @@ module WGPU
   class RenderPipeline
     attr_reader :handle
 
+    # Creates a render pipeline.
+    # @param device [Device] owning device
+    # @param layout [PipelineLayout, :auto, nil] pipeline layout
+    # @param vertex [Hash] programmable vertex stage descriptor
+    # @param fragment [Hash, nil] optional fragment stage descriptor
+    # @raise [PipelineError] if native validation or creation fails
     def initialize(device, label: nil, layout:, vertex:, primitive: {}, depth_stencil: nil, multisample: {}, fragment: nil)
       @device = device
       desc, @pointers = build_descriptor(
@@ -26,6 +32,10 @@ module WGPU
       end
     end
 
+    # Returns the bind group layout inferred or assigned at an index.
+    # @param index [Integer] bind group index
+    # @return [BindGroupLayout]
+    # @raise [PipelineError] if no native layout is returned
     def get_bind_group_layout(index)
       handle = Native.wgpuRenderPipelineGetBindGroupLayout(@handle, index)
       raise PipelineError, "Failed to get bind group layout at index #{index}" if handle.null?

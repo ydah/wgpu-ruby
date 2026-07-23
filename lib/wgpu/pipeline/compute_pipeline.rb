@@ -4,6 +4,11 @@ module WGPU
   class ComputePipeline
     attr_reader :handle
 
+    # Creates a compute pipeline.
+    # @param device [Device] owning device
+    # @param layout [PipelineLayout, :auto, nil] pipeline layout
+    # @param compute [Hash] programmable compute stage descriptor
+    # @raise [PipelineError] if native validation or creation fails
     def initialize(device, label: nil, layout:, compute:)
       @device = device
       desc, @pointers = build_descriptor(label:, layout:, compute:)
@@ -18,6 +23,10 @@ module WGPU
       end
     end
 
+    # Returns the bind group layout inferred or assigned at an index.
+    # @param index [Integer] bind group index
+    # @return [BindGroupLayout]
+    # @raise [PipelineError] if no native layout is returned
     def get_bind_group_layout(index)
       handle = Native.wgpuComputePipelineGetBindGroupLayout(@handle, index)
       raise PipelineError, "Failed to get bind group layout at index #{index}" if handle.null?

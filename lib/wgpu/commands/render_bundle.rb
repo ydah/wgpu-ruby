@@ -4,6 +4,8 @@ module WGPU
   class RenderBundle
     attr_reader :handle
 
+    # Wraps a reusable native render bundle.
+    # @param handle [FFI::Pointer] native render bundle handle
     def initialize(handle)
       @handle = handle
     end

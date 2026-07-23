@@ -14,6 +14,10 @@ module WGPU
       layout
     end
 
+    # Creates a layout describing shader-visible resource bindings.
+    # @param device [Device] owning device
+    # @param entries [Array<Hash>] binding layout descriptors
+    # @raise [PipelineError] if native validation or creation fails
     def initialize(device, label: nil, entries:)
       @device = device
       desc, @descriptor_keepalive = build_descriptor(label:, entries:)

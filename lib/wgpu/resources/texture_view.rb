@@ -4,6 +4,9 @@ module WGPU
   class TextureView
     attr_reader :handle, :texture
 
+    # Creates a view selecting texture format, dimension, subresources, and aspect.
+    # @param texture [Texture] parent texture
+    # @raise [ResourceError] if native creation fails
     def initialize(texture, label: nil, format: nil, dimension: nil, base_mip_level: 0, mip_level_count: nil, base_array_layer: 0, array_layer_count: nil, aspect: :all, usage: nil)
       @texture = texture
 

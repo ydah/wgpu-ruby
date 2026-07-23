@@ -10,10 +10,16 @@ module WGPU
 
     module_function
 
+    # Returns the delay between callback progress polls.
+    # @return [Float] seconds
     def poll_interval
       @poll_interval ||= POLL_INTERVAL_SECONDS
     end
 
+    # Sets the delay between callback progress polls.
+    # @param seconds [Numeric] positive delay in seconds
+    # @return [Float]
+    # @raise [ArgumentError] if the delay is not positive
     def poll_interval=(seconds)
       value = Float(seconds)
       raise ArgumentError, "poll interval must be positive" unless value.positive?
@@ -33,6 +39,11 @@ module WGPU
       end
     end
 
+    # Drives native event processing until a callback completes.
+    # @param status_holder [Hash] state whose +:done+ flag is set by the callback
+    # @param timeout [Numeric, nil] maximum wait time in seconds
+    # @return [void]
+    # @raise [TimeoutError] if completion exceeds the timeout
     def wait(status_holder:, instance: nil, device: nil, future: nil, timeout: nil)
       timeout = Float(timeout) if timeout
       raise ArgumentError, "timeout must be non-negative" if timeout&.negative?

@@ -5,6 +5,12 @@ module WGPU
     module EnumHelper
       module_function
 
+      # Converts a symbolic enum member to its integer value.
+      # @param enum [FFI::Enum, Hash] enum mapping
+      # @param value [Symbol, Integer] member or native value
+      # @param name [String] name used in validation errors
+      # @return [Integer]
+      # @raise [ArgumentError] if the value is invalid
       def coerce(enum, value, name: "enum")
         return value if value.is_a?(Integer)
         raise ArgumentError, "#{name} must be a Symbol or Integer, got #{value.class}" unless value.is_a?(Symbol)
@@ -34,6 +40,10 @@ module WGPU
         values.reduce(0) { |flags, item| flags | coerce(enum, item, name:) }
       end
 
+      # Expands a bitset into its independent symbolic flags.
+      # @param enum [FFI::Enum, Hash] flag mapping
+      # @param value [Integer] combined bitset
+      # @return [Array<Symbol>]
       def decompose_flags(enum, value)
         raise ArgumentError, "flag value must be an Integer" unless value.is_a?(Integer)
 

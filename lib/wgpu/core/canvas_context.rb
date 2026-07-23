@@ -4,6 +4,9 @@ module WGPU
   class CanvasContext
     attr_reader :physical_size
 
+    # Creates a canvas context for platform presentation information.
+    # @param instance [Instance] owning WebGPU instance
+    # @param present_info [Hash] platform handles or an existing surface
     def initialize(instance, present_info = {})
       @instance = instance
       @present_info = present_info || {}
@@ -12,6 +15,11 @@ module WGPU
       @config = nil
     end
 
+    # Updates the drawable's physical pixel size.
+    # @param width [Integer] width in pixels
+    # @param height [Integer] height in pixels
+    # @return [Array<Integer>] stored width and height
+    # @raise [ArgumentError] if either dimension is negative
     def set_physical_size(width, height)
       raise ArgumentError, "width and height must be non-negative" if width.to_i.negative? || height.to_i.negative?
 
@@ -34,6 +42,11 @@ module WGPU
       @config
     end
 
+    # Configures the backing surface for presentation.
+    # @param device [Device] device used to render frames
+    # @param format [Symbol, nil] surface texture format
+    # @return [Hash] resolved canvas configuration
+    # @raise [SurfaceError] if no surface exists or dimensions are not positive
     def configure(device:, format: nil, usage: :render_attachment, view_formats: [], color_space: "srgb", tone_mapping: nil, alpha_mode: :opaque, width: nil, height: nil, present_mode: :fifo)
       ensure_surface
 
@@ -66,6 +79,8 @@ module WGPU
       }
     end
 
+    # Removes the current surface configuration.
+    # @return [void]
     def unconfigure
       @surface&.unconfigure
       @config = nil
@@ -82,6 +97,8 @@ module WGPU
       @surface.current_texture
     end
 
+    # Presents the current surface texture.
+    # @return [void]
     def present
       @surface&.present
     end

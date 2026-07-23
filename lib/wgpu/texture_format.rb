@@ -6,19 +6,27 @@ module WGPU
 
     module_function
 
+    # Returns the byte size of one texel block.
+    # @return [Integer]
     def block_size(format, aspect: :all)
       block_info(format, aspect:).last
     end
 
+    # Returns a format's texel block width and height.
+    # @return [Array(Integer, Integer)]
     def block_dimensions(format)
       block_info(format).first(2)
     end
 
+    # Returns the tightly packed bytes required for one texel row.
+    # @return [Integer]
     def bytes_per_row(width, format, aspect: :all)
       block_width, _, bytes = block_info(format, aspect:)
       ((Integer(width) + block_width - 1) / block_width) * bytes
     end
 
+    # Returns row bytes rounded up to the requested copy alignment.
+    # @return [Integer]
     def aligned_bytes_per_row(width, format, aspect: :all, alignment: COPY_ALIGNMENT)
       row_bytes = bytes_per_row(width, format, aspect:)
       ((row_bytes + alignment - 1) / alignment) * alignment

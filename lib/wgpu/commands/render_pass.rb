@@ -4,6 +4,15 @@ module WGPU
   class RenderPass
     attr_reader :handle
 
+    # Begins a render pass owned by the command encoder.
+    # @param encoder [CommandEncoder] owning encoder
+    # @param label [String, nil] optional debug label
+    # @param color_attachments [Array<Hash>] color attachment descriptors
+    # @param depth_stencil_attachment [Hash, nil] depth/stencil attachment descriptor
+    # @param occlusion_query_set [QuerySet, nil] query set for occlusion queries
+    # @param timestamp_writes [Hash, nil] beginning and ending timestamp query settings
+    # @param max_draw_count [Integer, nil] implementation hint for the maximum draw count
+    # @raise [CommandError] if the native pass cannot be created
     def initialize(encoder, label: nil, color_attachments:, depth_stencil_attachment: nil, occlusion_query_set: nil, timestamp_writes: nil, max_draw_count: nil)
       @encoder = encoder
       @pointers = []
@@ -41,10 +50,18 @@ module WGPU
       raise CommandError, "Failed to begin render pass" if @handle.null?
     end
 
+    # Selects the render pipeline used by subsequent draws.
+    # @param pipeline [RenderPipeline] pipeline to bind
+    # @return [void]
     def set_pipeline(pipeline)
       Native.wgpuRenderPassEncoderSetPipeline(@handle, pipeline.handle)
     end
 
+    # Binds a resource group for subsequent draws.
+    # @param index [Integer] bind group index
+    # @param bind_group [BindGroup] group to bind
+    # @param dynamic_offsets [Array<Integer>] dynamic buffer offsets
+    # @return [void]
     def set_bind_group(index, bind_group, dynamic_offsets: [])
       if dynamic_offsets.empty?
         Native.wgpuRenderPassEncoderSetBindGroup(@handle, index, bind_group.handle, 0, nil)
@@ -55,21 +72,37 @@ module WGPU
       end
     end
 
+    # Binds a vertex buffer to a slot.
+    # @param slot [Integer] vertex buffer slot
+    # @param buffer [Buffer] vertex data buffer
+    # @param offset [Integer] first byte to bind
+    # @param size [Integer, nil] number of bytes to bind
+    # @return [void]
     def set_vertex_buffer(slot, buffer, offset: 0, size: nil)
       size ||= buffer.size - offset
       Native.wgpuRenderPassEncoderSetVertexBuffer(@handle, slot, buffer.handle, offset, size)
     end
 
+    # Binds an index buffer for indexed draws.
+    # @param buffer [Buffer] index data buffer
+    # @param format [Symbol, Integer] index element format
+    # @param offset [Integer] first byte to bind
+    # @param size [Integer, nil] number of bytes to bind
+    # @return [void]
     def set_index_buffer(buffer, format, offset: 0, size: nil)
       size ||= buffer.size - offset
       format_value = Native::EnumHelper.coerce(Native::IndexFormat, format, name: "index format")
       Native.wgpuRenderPassEncoderSetIndexBuffer(@handle, buffer.handle, format_value, offset, size)
     end
 
+    # Records a non-indexed draw.
+    # @return [void]
     def draw(vertex_count, instance_count: 1, first_vertex: 0, first_instance: 0)
       Native.wgpuRenderPassEncoderDraw(@handle, vertex_count, instance_count, first_vertex, first_instance)
     end
 
+    # Records an indexed draw.
+    # @return [void]
     def draw_indexed(index_count, instance_count: 1, first_index: 0, base_vertex: 0, first_instance: 0)
       Native.wgpuRenderPassEncoderDrawIndexed(@handle, index_count, instance_count, first_index, base_vertex, first_instance)
     end
@@ -197,6 +230,8 @@ module WGPU
       Native.wgpuRenderPassEncoderInsertDebugMarker(@handle, label_view)
     end
 
+    # Ends the pass if it has not already ended.
+    # @return [void]
     def end_pass
       return if @ended
 
@@ -205,10 +240,14 @@ module WGPU
       @encoder.send(:pass_ended, self)
     end
 
+    # Ends the pass.
+    # @return [void]
     def end
       end_pass
     end
 
+    # Reports whether the pass has ended.
+    # @return [Boolean]
     def ended?
       @ended
     end

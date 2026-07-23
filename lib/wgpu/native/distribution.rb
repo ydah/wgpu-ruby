@@ -54,6 +54,10 @@ module WGPU
 
       module_function
 
+      # Selects the native release artifact for a Ruby platform.
+      # @param platform [String] Ruby platform identifier
+      # @return [Hash] artifact metadata
+      # @raise [LoadError] if the platform is unsupported
       def artifact_for(platform = RUBY_PLATFORM)
         raise LoadError, unsupported_platform_message(platform) if platform.include?("musl")
 
@@ -128,6 +132,9 @@ module WGPU
         "v#{components.join(".")}"
       end
 
+      # Reports whether a native capability is implemented by the pinned release.
+      # @param name [Symbol] capability name
+      # @return [Boolean]
       def capability_implemented?(name)
         !UNIMPLEMENTED_CAPABILITIES.fetch(name, []).include?(VERSION)
       end

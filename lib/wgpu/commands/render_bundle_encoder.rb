@@ -4,6 +4,15 @@ module WGPU
   class RenderBundleEncoder
     attr_reader :handle
 
+    # Creates an encoder for reusable render commands.
+    # @param device [Device] owning device
+    # @param color_formats [Array<Symbol, Integer>] color attachment formats
+    # @param depth_stencil_format [Symbol, Integer, nil] optional depth/stencil format
+    # @param sample_count [Integer] multisample count
+    # @param depth_read_only [Boolean] whether depth writes are disabled
+    # @param stencil_read_only [Boolean] whether stencil writes are disabled
+    # @param label [String, nil] optional debug label
+    # @raise [RenderBundleError] if the native encoder cannot be created
     def initialize(device, color_formats:, depth_stencil_format: nil, sample_count: 1,
                    depth_read_only: false, stencil_read_only: false, label: nil)
       @device = device
@@ -42,12 +51,21 @@ module WGPU
       raise RenderBundleError, "Failed to create render bundle encoder" if @handle.null?
     end
 
+    # Selects the pipeline used by subsequent bundle draws.
+    # @param pipeline [RenderPipeline] pipeline to bind
+    # @raise [RenderBundleError] if the encoder is finished
+    # @return [void]
     def set_pipeline(pipeline)
       raise RenderBundleError, "Encoder already finished" if @finished
 
       Native.wgpuRenderBundleEncoderSetPipeline(@handle, pipeline.handle)
     end
 
+    # Binds a resource group for subsequent bundle draws.
+    # @param index [Integer] bind group index
+    # @param bind_group [BindGroup] group to bind
+    # @param dynamic_offsets [Array<Integer>, nil] dynamic buffer offsets
+    # @return [void]
     def set_bind_group(index, bind_group, dynamic_offsets: nil)
       raise RenderBundleError, "Encoder already finished" if @finished
 
@@ -60,6 +78,10 @@ module WGPU
       end
     end
 
+    # Binds a vertex buffer to a slot.
+    # @param slot [Integer] vertex buffer slot
+    # @param buffer [Buffer] vertex data buffer
+    # @return [void]
     def set_vertex_buffer(slot, buffer, offset: 0, size: nil)
       raise RenderBundleError, "Encoder already finished" if @finished
 
@@ -67,6 +89,10 @@ module WGPU
       Native.wgpuRenderBundleEncoderSetVertexBuffer(@handle, slot, buffer.handle, offset, size)
     end
 
+    # Binds an index buffer for indexed bundle draws.
+    # @param buffer [Buffer] index data buffer
+    # @param format [Symbol, Integer] index element format
+    # @return [void]
     def set_index_buffer(buffer, format: :uint32, offset: 0, size: nil)
       raise RenderBundleError, "Encoder already finished" if @finished
 
@@ -75,30 +101,45 @@ module WGPU
       Native.wgpuRenderBundleEncoderSetIndexBuffer(@handle, buffer.handle, format_value, offset, size)
     end
 
+    # Records a non-indexed draw in the bundle.
+    # @return [void]
     def draw(vertex_count, instance_count: 1, first_vertex: 0, first_instance: 0)
       raise RenderBundleError, "Encoder already finished" if @finished
 
       Native.wgpuRenderBundleEncoderDraw(@handle, vertex_count, instance_count, first_vertex, first_instance)
     end
 
+    # Records an indexed draw in the bundle.
+    # @return [void]
     def draw_indexed(index_count, instance_count: 1, first_index: 0, base_vertex: 0, first_instance: 0)
       raise RenderBundleError, "Encoder already finished" if @finished
 
       Native.wgpuRenderBundleEncoderDrawIndexed(@handle, index_count, instance_count, first_index, base_vertex, first_instance)
     end
 
+    # Records a non-indexed draw using buffer arguments.
+    # @param buffer [Buffer] indirect argument buffer
+    # @param offset [Integer] byte offset of the arguments
+    # @return [void]
     def draw_indirect(buffer, offset: 0)
       raise RenderBundleError, "Encoder already finished" if @finished
 
       Native.wgpuRenderBundleEncoderDrawIndirect(@handle, buffer.handle, offset)
     end
 
+    # Records an indexed draw using buffer arguments.
+    # @param buffer [Buffer] indirect argument buffer
+    # @param offset [Integer] byte offset of the arguments
+    # @return [void]
     def draw_indexed_indirect(buffer, offset: 0)
       raise RenderBundleError, "Encoder already finished" if @finished
 
       Native.wgpuRenderBundleEncoderDrawIndexedIndirect(@handle, buffer.handle, offset)
     end
 
+    # Starts a labeled group in GPU debugging tools.
+    # @param label [String] group label
+    # @return [void]
     def push_debug_group(label)
       raise RenderBundleError, "Encoder already finished" if @finished
 
@@ -109,12 +150,17 @@ module WGPU
       Native.wgpuRenderBundleEncoderPushDebugGroup(@handle, label_view)
     end
 
+    # Ends the most recently pushed debug group.
+    # @return [void]
     def pop_debug_group
       raise RenderBundleError, "Encoder already finished" if @finished
 
       Native.wgpuRenderBundleEncoderPopDebugGroup(@handle)
     end
 
+    # Inserts a labeled point in GPU debugging tools.
+    # @param label [String] marker label
+    # @return [void]
     def insert_debug_marker(label)
       raise RenderBundleError, "Encoder already finished" if @finished
 
@@ -125,6 +171,10 @@ module WGPU
       Native.wgpuRenderBundleEncoderInsertDebugMarker(@handle, label_view)
     end
 
+    # Finishes recording and creates an immutable render bundle.
+    # @param label [String, nil] optional bundle label
+    # @return [RenderBundle]
+    # @raise [RenderBundleError] if already finished or native creation fails
     def finish(label: nil)
       raise RenderBundleError, "Encoder already finished" if @finished
 

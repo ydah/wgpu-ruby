@@ -4,6 +4,11 @@ module WGPU
   class ComputePass
     attr_reader :handle
 
+    # Begins a compute pass owned by the command encoder.
+    # @param encoder [CommandEncoder] owning encoder
+    # @param label [String, nil] optional debug label
+    # @param timestamp_writes [Hash, nil] beginning and ending timestamp query settings
+    # @raise [CommandError] if the native pass cannot be created
     def initialize(encoder, label: nil, timestamp_writes: nil)
       @encoder = encoder
       @ended = false
@@ -32,10 +37,18 @@ module WGPU
       raise CommandError, "Failed to begin compute pass" if @handle.null?
     end
 
+    # Selects the compute pipeline used by subsequent dispatches.
+    # @param pipeline [ComputePipeline] pipeline to bind
+    # @return [void]
     def set_pipeline(pipeline)
       Native.wgpuComputePassEncoderSetPipeline(@handle, pipeline.handle)
     end
 
+    # Binds a resource group for subsequent dispatches.
+    # @param index [Integer] bind group index
+    # @param bind_group [BindGroup] group to bind
+    # @param dynamic_offsets [Array<Integer>] dynamic buffer offsets
+    # @return [void]
     def set_bind_group(index, bind_group, dynamic_offsets: [])
       if dynamic_offsets.empty?
         Native.wgpuComputePassEncoderSetBindGroup(@handle, index, bind_group.handle, 0, nil)
@@ -46,10 +59,19 @@ module WGPU
       end
     end
 
+    # Dispatches a three-dimensional compute workgroup grid.
+    # @param x [Integer] workgroup count on the x axis
+    # @param y [Integer] workgroup count on the y axis
+    # @param z [Integer] workgroup count on the z axis
+    # @return [void]
     def dispatch_workgroups(x, y = 1, z = 1)
       Native.wgpuComputePassEncoderDispatchWorkgroups(@handle, x, y, z)
     end
 
+    # Dispatches workgroups using arguments read from a buffer.
+    # @param buffer [Buffer] indirect argument buffer
+    # @param offset [Integer] byte offset of the arguments
+    # @return [void]
     def dispatch_workgroups_indirect(buffer, offset: 0)
       Native.wgpuComputePassEncoderDispatchWorkgroupsIndirect(@handle, buffer.handle, offset)
     end
@@ -85,6 +107,8 @@ module WGPU
       Native.wgpuComputePassEncoderInsertDebugMarker(@handle, label_view)
     end
 
+    # Ends the pass if it has not already ended.
+    # @return [void]
     def end_pass
       return if @ended
 
@@ -93,10 +117,14 @@ module WGPU
       @encoder.send(:pass_ended, self)
     end
 
+    # Ends the pass.
+    # @return [void]
     def end
       end_pass
     end
 
+    # Reports whether the pass has ended.
+    # @return [Boolean]
     def ended?
       @ended
     end

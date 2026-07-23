@@ -13,6 +13,10 @@ module WGPU
 
     module_function
 
+    # Encodes Ruby values in little-endian native transfer format.
+    # @param values [Array] values to encode
+    # @param type [Symbol] element type
+    # @return [String] encoded bytes
     def pack(values, type: :f32)
       format, = format_for(type)
       Array(values).pack(format)
@@ -20,6 +24,10 @@ module WGPU
       raise ArgumentError, "value is out of range for #{type}: #{e.message}"
     end
 
+    # Decodes little-endian transfer bytes into Ruby values.
+    # @param bytes [String] encoded bytes
+    # @param type [Symbol] element type
+    # @return [Array]
     def unpack(bytes, type: :f32)
       format, byte_size = format_for(type)
       unless (bytes.bytesize % byte_size).zero?
@@ -29,10 +37,15 @@ module WGPU
       bytes.unpack(format)
     end
 
+    # Returns the byte width of one typed value.
+    # @param type [Symbol] element type
+    # @return [Integer]
     def byte_size(type)
       format_for(type).last
     end
 
+    # Converts data to an FFI pointer and reports its byte length.
+    # @return [Array(FFI::Pointer, Integer)] pointer and byte length
     def to_pointer(data, type: :f32)
       return [data, pointer_size(data)] if data.is_a?(FFI::Pointer)
 
@@ -42,6 +55,9 @@ module WGPU
       [pointer, bytes.bytesize]
     end
 
+    # Validates a non-negative aligned byte value.
+    # @return [Integer] normalized value
+    # @raise [ArgumentError] if negative or misaligned
     def validate_alignment!(value, alignment, name:)
       integer = Integer(value)
       raise ArgumentError, "#{name} must be non-negative" if integer.negative?

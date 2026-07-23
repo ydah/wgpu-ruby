@@ -4,6 +4,9 @@ module WGPU
   class Sampler
     attr_reader :handle
 
+    # Creates a texture sampler with address, filter, and comparison settings.
+    # @param device [Device] owning device
+    # @raise [ResourceError] if native validation or creation fails
     def initialize(device, label: nil, address_mode_u: :clamp_to_edge, address_mode_v: :clamp_to_edge, address_mode_w: :clamp_to_edge, mag_filter: :nearest, min_filter: :nearest, mipmap_filter: :nearest, lod_min_clamp: 0.0, lod_max_clamp: 32.0, compare: nil, max_anisotropy: 1)
       @device = device
 

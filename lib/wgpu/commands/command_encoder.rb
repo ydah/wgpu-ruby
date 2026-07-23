@@ -4,6 +4,10 @@ module WGPU
   class CommandEncoder
     attr_reader :handle
 
+    # Creates an encoder for commands submitted to a device queue.
+    # @param device [Device] owning device
+    # @param label [String, nil] optional debug label
+    # @raise [CommandError] if the native encoder cannot be created
     def initialize(device, label: nil)
       @device = device
       @finished = false
@@ -24,6 +28,11 @@ module WGPU
       raise CommandError, "Failed to create command encoder" if @handle.null?
     end
 
+    # Begins a compute pass, optionally yielding it for scoped recording.
+    # @param label [String, nil] optional debug label
+    # @param timestamp_writes [Hash, nil] timestamp query settings
+    # @yieldparam pass [ComputePass] newly created pass
+    # @return [ComputePass, Object] pass without a block, otherwise the block result
     def begin_compute_pass(label: nil, timestamp_writes: nil)
       ensure_can_begin_pass!
       pass = ComputePass.new(self, label: label, timestamp_writes: timestamp_writes)
@@ -42,6 +51,10 @@ module WGPU
       end
     end
 
+    # Begins a render pass, optionally yielding it for scoped recording.
+    # @param color_attachments [Array<Hash>] color attachment descriptors
+    # @yieldparam pass [RenderPass] newly created pass
+    # @return [RenderPass, Object] pass without a block, otherwise the block result
     def begin_render_pass(color_attachments:, depth_stencil_attachment: nil, occlusion_query_set: nil, timestamp_writes: nil, max_draw_count: nil, label: nil)
       ensure_can_begin_pass!
       pass = RenderPass.new(self,
@@ -67,6 +80,8 @@ module WGPU
       end
     end
 
+    # Copies bytes between buffers.
+    # @return [void]
     def copy_buffer_to_buffer(source:, source_offset: 0, destination:, destination_offset: 0, size:)
       raise CommandError, "Encoder already finished" if @finished
       Native.wgpuCommandEncoderCopyBufferToBuffer(
@@ -77,6 +92,11 @@ module WGPU
       )
     end
 
+    # Copies buffer data into a texture region.
+    # @param source [Hash] buffer and layout descriptor
+    # @param destination [Hash] texture and origin descriptor
+    # @param copy_size [Hash, Array] extent to copy
+    # @return [void]
     def copy_buffer_to_texture(source:, destination:, copy_size:)
       raise CommandError, "Encoder already finished" if @finished
 
@@ -106,6 +126,11 @@ module WGPU
       Native.wgpuCommandEncoderCopyBufferToTexture(@handle, src, dst, size)
     end
 
+    # Copies a texture region into a buffer.
+    # @param source [Hash] texture and origin descriptor
+    # @param destination [Hash] buffer and layout descriptor
+    # @param copy_size [Hash, Array] extent to copy
+    # @return [void]
     def copy_texture_to_buffer(source:, destination:, copy_size:)
       raise CommandError, "Encoder already finished" if @finished
 
@@ -135,6 +160,11 @@ module WGPU
       Native.wgpuCommandEncoderCopyTextureToBuffer(@handle, src, dst, size)
     end
 
+    # Copies one texture region into another texture.
+    # @param source [Hash] source texture and origin descriptor
+    # @param destination [Hash] destination texture and origin descriptor
+    # @param copy_size [Hash, Array] extent to copy
+    # @return [void]
     def copy_texture_to_texture(source:, destination:, copy_size:)
       raise CommandError, "Encoder already finished" if @finished
 
@@ -170,6 +200,8 @@ module WGPU
       Native.wgpuCommandEncoderCopyTextureToTexture(@handle, src, dst, size)
     end
 
+    # Resolves query results into a destination buffer.
+    # @return [void]
     def resolve_query_set(query_set:, first_query:, query_count:, destination:, destination_offset:)
       raise CommandError, "Encoder already finished" if @finished
       Native.wgpuCommandEncoderResolveQuerySet(
@@ -182,17 +214,29 @@ module WGPU
       )
     end
 
+    # Clears a byte range in a buffer to zero.
+    # @param buffer [Buffer] buffer to clear
+    # @param offset [Integer] first byte to clear
+    # @param size [Integer, nil] number of bytes to clear
+    # @return [void]
     def clear_buffer(buffer, offset: 0, size: nil)
       raise CommandError, "Encoder already finished" if @finished
       size ||= buffer.size - offset
       Native.wgpuCommandEncoderClearBuffer(@handle, buffer.handle, offset, size)
     end
 
+    # Writes a GPU timestamp to a query set.
+    # @param query_set [QuerySet] timestamp query set
+    # @param query_index [Integer] destination query index
+    # @return [void]
     def write_timestamp(query_set, query_index)
       raise CommandError, "Encoder already finished" if @finished
       Native.wgpuCommandEncoderWriteTimestamp(@handle, query_set.handle, query_index)
     end
 
+    # Starts a labeled group in GPU debugging tools.
+    # @param label [String] group label
+    # @return [void]
     def push_debug_group(label)
       raise CommandError, "Encoder already finished" if @finished
       label_view = Native::StringView.new
@@ -202,11 +246,16 @@ module WGPU
       Native.wgpuCommandEncoderPushDebugGroup(@handle, label_view)
     end
 
+    # Ends the most recently pushed debug group.
+    # @return [void]
     def pop_debug_group
       raise CommandError, "Encoder already finished" if @finished
       Native.wgpuCommandEncoderPopDebugGroup(@handle)
     end
 
+    # Inserts a labeled point in GPU debugging tools.
+    # @param label [String] marker label
+    # @return [void]
     def insert_debug_marker(label)
       raise CommandError, "Encoder already finished" if @finished
       label_view = Native::StringView.new
@@ -216,6 +265,10 @@ module WGPU
       Native.wgpuCommandEncoderInsertDebugMarker(@handle, label_view)
     end
 
+    # Finishes recording and returns a command buffer.
+    # @param label [String, nil] optional command buffer label
+    # @return [CommandBuffer]
+    # @raise [CommandError] if the encoder is finished, has an active pass, or native creation fails
     def finish(label: nil)
       raise CommandError, "Encoder already finished" if @finished
       if @active_pass && !@active_pass.ended?

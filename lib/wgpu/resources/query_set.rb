@@ -4,6 +4,11 @@ module WGPU
   class QuerySet
     attr_reader :handle, :count, :type
 
+    # Creates a set of GPU queries.
+    # @param device [Device] owning device
+    # @param type [Symbol, Integer] query type
+    # @param count [Integer] number of queries
+    # @raise [ResourceError] if native creation fails
     def initialize(device, label: nil, type:, count:)
       @device = device
       @count = Integer(count)
@@ -28,6 +33,8 @@ module WGPU
       raise ResourceError, "Failed to create query set" if @handle.null?
     end
 
+    # Destroys the query storage once.
+    # @return [void]
     def destroy
       return if @destroyed
 

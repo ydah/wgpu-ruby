@@ -17,7 +17,7 @@ undocumented_methods = YARD::Registry.all(:method).select do |object|
     !object.is_attribute? &&
     !object.tag(:private) &&
     !(object.namespace.respond_to?(:tag) && object.namespace.tag(:private)) &&
-    object.docstring.blank?
+    object.docstring.to_s.strip.empty?
 end
 
 if undocumented_methods.empty?

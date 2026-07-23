@@ -24,6 +24,9 @@ module WGPU
         end
       end
 
+      # Reports whether an optional native function was attached.
+      # @param name [Symbol] exported function name
+      # @return [Boolean]
       def optional_function_available?(name)
         optional_functions.fetch(name, false)
       end
@@ -46,6 +49,9 @@ module WGPU
     extend OptionalFunctions
 
     class << self
+      # Resolves the native library from an override or the versioned cache.
+      # @return [String] absolute shared-library path
+      # @raise [LoadError] when no library can be found
       def library_path
         if ENV["WGPU_LIB_PATH"] && !ENV["WGPU_LIB_PATH"].empty?
           path = File.expand_path(ENV["WGPU_LIB_PATH"])
