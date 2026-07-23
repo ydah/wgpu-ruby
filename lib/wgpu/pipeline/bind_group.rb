@@ -47,6 +47,18 @@ module WGPU
     private
 
     def create_entry(entry_hash)
+      DescriptorHelpers.validate_keys!(
+        entry_hash,
+        allowed: %i[binding buffer offset size sampler texture_view],
+        required: [:binding],
+        context: "bind group entry"
+      )
+      resources = %i[buffer sampler texture_view].select { |key| entry_hash[key] }
+      unless resources.one?
+        raise ArgumentError,
+          "bind group entry must define exactly one resource (:buffer, :sampler, or :texture_view)"
+      end
+
       entry = Native::BindGroupEntry.new
       entry[:next_in_chain] = nil
       entry[:binding] = entry_hash[:binding]

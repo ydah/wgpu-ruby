@@ -2,7 +2,7 @@
 # frozen_string_literal: true
 
 # Purpose: double an f32 storage buffer with a compute shader.
-# APIs: buffers, bind groups/layouts, compute pipeline/pass, queue submit/readback.
+# APIs: buffers, auto pipeline layout, bind groups, compute pass, queue readback.
 # Expected: output values are twice the input values and the script prints SUCCESS.
 
 require_relative "../lib/wgpu"
@@ -39,13 +39,11 @@ buffer.unmap
 
 shader = device.create_shader_module(label: "compute shader", code: SHADER_CODE)
 
-bind_group_layout = device.create_bind_group_layout(
-  entries: [{
-    binding: 0,
-    visibility: :compute,
-    buffer: { type: :storage }
-  }]
+pipeline = device.create_compute_pipeline(
+  layout: :auto,
+  compute: { module: shader, entry_point: "main" }
 )
+bind_group_layout = pipeline.get_bind_group_layout(0)
 
 bind_group = device.create_bind_group(
   layout: bind_group_layout,
@@ -55,12 +53,6 @@ bind_group = device.create_bind_group(
     offset: 0,
     size: buffer.size
   }]
-)
-
-pipeline_layout = device.create_pipeline_layout(bind_group_layouts: [bind_group_layout])
-pipeline = device.create_compute_pipeline(
-  layout: pipeline_layout,
-  compute: { module: shader, entry_point: "main" }
 )
 
 encoder = device.create_command_encoder
@@ -79,7 +71,7 @@ output_data = result.unpack("f*")
 puts "Output (first 10): #{output_data[0, 10].inspect}"
 puts "\nVerification: #{output_data == input_data.map { |x| x * 2.0 } ? 'PASSED' : 'FAILED'}"
 
-[buffer, shader, bind_group_layout, bind_group, pipeline_layout, pipeline, encoder].each(&:release)
+[buffer, shader, bind_group_layout, bind_group, pipeline, encoder].each(&:release)
 device.release
 adapter.release
 instance.release
