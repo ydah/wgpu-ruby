@@ -5,13 +5,19 @@ error scopes, compilation info, and queue completion. wgpu-ruby keeps callback
 objects alive until each operation finishes and selects the best available
 progress mechanism:
 
-1. `wgpuInstanceWaitAny` with a short timed wait;
+1. zero-time `wgpuInstanceWaitAny` polling;
 2. `Instance#process_events`;
 3. `Device#poll`;
 4. a short Ruby sleep when native polling cannot block.
 
-The sleep/timed-wait interval defaults to 1 ms and can be adjusted with
+wgpu-native v27 aborts when its unsupported timed-WaitAny instance feature is
+requested, so wgpu-ruby deliberately leaves that feature disabled. The Ruby
+poll interval defaults to 1 ms and can be adjusted with
 `WGPU::AsyncWaiter.poll_interval=`.
+
+That release also exports `wgpuBufferGetMapState` as an unimplemented panic
+stub. `Buffer#map_state` is maintained by wgpu-ruby as `:unmapped`,
+`:pending`, or `:mapped` while map operations run.
 
 Synchronous adapter/device requests, `Buffer#map_sync`,
 `Device#pop_error_scope`, and `Queue#on_submitted_work_done` accept

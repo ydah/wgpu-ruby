@@ -9,6 +9,7 @@ module WGPU
       @size = size
       @usage = normalize_usage(usage)
       @mapped = mapped_at_creation
+      @map_state = mapped_at_creation ? :mapped : :unmapped
 
       desc, keepalive = build_descriptor(
         label:,
@@ -54,6 +55,7 @@ module WGPU
     def unmap
       Native.wgpuBufferUnmap(@handle)
       @mapped = false
+      @map_state = :unmapped
     end
 
     def map_sync(mode, offset: 0, size: nil, timeout: nil)
@@ -132,8 +134,9 @@ module WGPU
     end
 
     def map_state
-      state = Native.wgpuBufferGetMapState(@handle)
-      state || (@mapped ? :mapped : :unmapped)
+      return @map_state unless Native.buffer_map_state_available?
+
+      Native.wgpuBufferGetMapState(@handle) || @map_state
     end
 
     def destroy
@@ -182,6 +185,7 @@ module WGPU
       callback_info[:userdata2] = nil
 
       future = Native.wgpuBufferMapAsync(@handle, mode_flag, offset, size, callback_info)
+      @map_state = :pending
 
       [status_holder, callback_token, future]
     end
@@ -199,8 +203,10 @@ module WGPU
     def finalize_map(status_holder)
       if status_holder[:status] == :success
         @mapped = true
+        @map_state = :mapped
         true
       else
+        @map_state = :unmapped
         detail = status_holder[:message]
         base = "Failed to map buffer: #{status_holder[:status]}"
         raise BufferError, detail && !detail.empty? ? "#{base} (#{detail})" : base

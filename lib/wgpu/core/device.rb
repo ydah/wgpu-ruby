@@ -101,8 +101,8 @@ module WGPU
       end
 
       device = new(handle, adapter: adapter, label: label, callback_state: device_callback_state)
-      device.retain_device_callback(device_lost_callback)
-      device.retain_device_callback(uncaptured_error_callback)
+      device.send(:retain_device_callback, device_lost_callback)
+      device.send(:retain_device_callback, uncaptured_error_callback)
       device
     end
 

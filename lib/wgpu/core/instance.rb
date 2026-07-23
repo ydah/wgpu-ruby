@@ -8,8 +8,8 @@ module WGPU
       desc = Native::InstanceDescriptor.new
       desc[:next_in_chain] = nil
       desc[:features][:next_in_chain] = nil
-      desc[:features][:timed_wait_any_enable] = 1
-      desc[:features][:timed_wait_any_max_count] = 1
+      desc[:features][:timed_wait_any_enable] = 0
+      desc[:features][:timed_wait_any_max_count] = 0
 
       @handle = Native.wgpuCreateInstance(desc)
       raise InitializationError, "Failed to create WebGPU instance" if @handle.null?

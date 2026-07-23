@@ -72,15 +72,8 @@ module WGPU
     private_class_method :build_wait_info
 
     def wait_with_wait_any(instance, wait_info)
-      timeout_ns = (poll_interval * 1_000_000_000).to_i
-      status = Native.wgpuInstanceWaitAny(instance.handle, 1, wait_info.to_ptr, timeout_ns)
-      return true if [:success, :timed_out].include?(status)
-      if status == :unsupported_timeout
-        fallback_status = Native.wgpuInstanceWaitAny(instance.handle, 1, wait_info.to_ptr, 0)
-        return false if [:success, :timed_out].include?(fallback_status)
-
-        status = fallback_status
-      end
+      status = Native.wgpuInstanceWaitAny(instance.handle, 1, wait_info.to_ptr, 0)
+      return false if [:success, :timed_out].include?(status)
 
       raise Error, "wgpuInstanceWaitAny failed: #{status.inspect}"
     end

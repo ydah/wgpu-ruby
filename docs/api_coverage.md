@@ -29,7 +29,7 @@ Legend:
 | `GPUCanvasContext` | `WGPU::CanvasContext` | ◐ | Native-window presentation wrapper; no DOM `canvas` attribute. |
 | `GPUCommandBuffer` | `WGPU::CommandBuffer` | ✅ | |
 | `GPUCommandEncoder` | `WGPU::CommandEncoder` | ✅ | Buffer/texture copies, query resolution, timestamps, and debug markers are exposed. |
-| `GPUCompilationInfo` | `ShaderModule#get_compilation_info` + `CompilationMessage` | ✅ | Typed diagnostics retain the v1.x outer Hash. |
+| `GPUCompilationInfo` | `ShaderModule#get_compilation_info` + `CompilationMessage` | ◐ | Typed diagnostics are ready, but pinned wgpu-native v27 exports only a panic stub; calls fail safely in Ruby. |
 | `GPUCompilationMessage` | `Hash` entries | ◐ | Message, type, line, column, offset, and length are returned. |
 | `GPUComputePassEncoder` | `WGPU::ComputePass` | ✅ | |
 | `GPUComputePipeline` | `WGPU::ComputePipeline` | ✅ | Auto layout and override constants are accepted. |

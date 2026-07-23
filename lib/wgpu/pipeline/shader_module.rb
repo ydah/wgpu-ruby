@@ -33,10 +33,22 @@ module WGPU
         raise ShaderError, shader_error_message(msg, label)
       end
 
-      validate_compilation!(label) if validate
+      return unless validate
+
+      begin
+        validate_compilation!(label)
+      rescue StandardError
+        release
+        raise
+      end
     end
 
     def get_compilation_info
+      unless Native.compilation_info_available?
+        raise ShaderError,
+          "Shader compilation info is not implemented by wgpu-native #{Native::Distribution::VERSION}"
+      end
+
       result_holder = { done: false, status: nil, messages: [] }
       instance = @device.adapter&.instance
 

@@ -36,4 +36,13 @@ RSpec.describe WGPU::CompilationMessage, :skip_gpu_check do
     )
     expect(shader.send(:select_source, nil, "\x03\x02\x23\x07")).to be_a(String)
   end
+
+  it "guards the unimplemented v27 compilation-info function" do
+    shader = WGPU::ShaderModule.allocate
+
+    expect { shader.get_compilation_info }.to raise_error(
+      WGPU::ShaderError,
+      /not implemented by wgpu-native v27\.0\.4\.0/
+    )
+  end
 end
