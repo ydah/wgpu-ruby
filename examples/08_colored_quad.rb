@@ -3,6 +3,8 @@
 
 # Example 08: Colored Quad with Vertex Buffer
 # Demonstrates vertex buffers, index buffers, and vertex attributes.
+# APIs: vertex/index buffers, render pipeline/pass, RenderPass#draw_indexed.
+# Expected: a colored quad is visible until the window is closed.
 #
 # Requirements:
 #   - SDL3 library installed (brew install sdl3 on macOS)

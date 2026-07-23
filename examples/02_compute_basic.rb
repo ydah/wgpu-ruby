@@ -1,6 +1,10 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+# Purpose: double an f32 storage buffer with a compute shader.
+# APIs: buffers, bind groups/layouts, compute pipeline/pass, queue submit/readback.
+# Expected: output values are twice the input values and the script prints SUCCESS.
+
 require_relative "../lib/wgpu"
 
 SHADER_CODE = <<~WGSL

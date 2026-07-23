@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe WGPU::Sampler do
+RSpec.describe WGPU::Sampler, :gpu do
   let(:instance) { WGPU::Instance.new }
   let(:adapter) { instance.request_adapter }
   let(:device) { adapter.request_device }

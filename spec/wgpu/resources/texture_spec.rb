@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe WGPU::Texture do
+RSpec.describe WGPU::Texture, :gpu do
   let(:instance) { WGPU::Instance.new }
   let(:adapter) { instance.request_adapter }
   let(:device) { adapter.request_device }
@@ -185,7 +185,7 @@ RSpec.describe WGPU::Texture do
   end
 end
 
-RSpec.describe WGPU::TextureView do
+RSpec.describe WGPU::TextureView, :gpu do
   let(:instance) { WGPU::Instance.new }
   let(:adapter) { instance.request_adapter }
   let(:device) { adapter.request_device }

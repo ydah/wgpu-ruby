@@ -30,7 +30,7 @@ RSpec.describe WGPU do
     end
   end
 
-  describe "GPU operations" do
+  describe "GPU operations", :gpu do
     it "creates an instance" do
       instance = WGPU::Instance.new
       expect(instance.handle).not_to be_null

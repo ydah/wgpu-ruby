@@ -1,6 +1,10 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+# Purpose: multiply two matrices with a compute shader.
+# APIs: storage/uniform buffers, compute pipeline/pass, workgroup dispatch, readback.
+# Expected: the GPU result matches the CPU matrix multiplication result.
+
 require_relative "../lib/wgpu"
 
 SHADER_CODE = <<~WGSL
@@ -49,7 +53,7 @@ def create_output_buffer(device, rows, cols)
     usage: [:storage, :copy_src, :copy_dst],
     mapped_at_creation: true
   )
-  buffer.mapped_range.write_bytes([rows, cols].pack("L<L<") + "\x00" * (rows * cols * 4))
+  buffer.mapped_range.write_bytes([rows, cols].pack("L<L<") + ("\x00" * (rows * cols * 4)))
   buffer.unmap
   buffer
 end
@@ -62,8 +66,8 @@ queue = device.queue
 puts "=== GPU Matrix Multiplication Example ==="
 
 m, k, n = 4, 4, 4
-a_data = (1..m*k).map(&:to_f)
-b_data = (1..k*n).map(&:to_f)
+a_data = (1..(m*k)).map(&:to_f)
+b_data = (1..(k*n)).map(&:to_f)
 
 puts "\nMatrix A (#{m}x#{k}):"
 m.times { |i| puts "  #{a_data[i*k, k].inspect}" }
@@ -118,7 +122,7 @@ expected = Array.new(m * n, 0.0)
 m.times do |i|
   n.times do |j|
     k.times do |kk|
-      expected[i * n + j] += a_data[i * k + kk] * b_data[kk * n + j]
+      expected[(i * n) + j] += a_data[(i * k) + kk] * b_data[(kk * n) + j]
     end
   end
 end

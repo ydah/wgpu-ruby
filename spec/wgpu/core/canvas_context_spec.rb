@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe WGPU::CanvasContext do
+RSpec.describe WGPU::CanvasContext, :gpu do
   class FakeSurface
     attr_reader :configured
 

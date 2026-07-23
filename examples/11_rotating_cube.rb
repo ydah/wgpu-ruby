@@ -3,6 +3,8 @@
 
 # Example 11: Rotating 3D Cube
 # Demonstrates 3D rendering with depth buffer, uniform buffers, and matrix transformations.
+# APIs: vertex/index/uniform/depth resources, render pipeline/pass, queue writes.
+# Expected: a depth-tested cube rotates until the window is closed.
 #
 # Requirements:
 #   - SDL3 library installed (brew install sdl3 on macOS)
@@ -75,9 +77,9 @@ module MatrixMath
       4.times do |col|
         sum = 0.0
         4.times do |k|
-          sum += a[row + k * 4] * b[k + col * 4]
+          sum += a[row + (k * 4)] * b[k + (col * 4)]
         end
-        result[row + col * 4] = sum
+        result[row + (col * 4)] = sum
       end
     end
     result

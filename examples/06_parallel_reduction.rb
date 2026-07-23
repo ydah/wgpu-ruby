@@ -1,6 +1,10 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+# Purpose: reduce a large f32 array through repeated compute dispatches.
+# APIs: Queue#write_buffer, compute pipeline/pass, repeated submit and readback.
+# Expected: the GPU sum matches Ruby's expected sum.
+
 require_relative "../lib/wgpu"
 
 SHADER_CODE = <<~WGSL

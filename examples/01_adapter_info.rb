@@ -1,6 +1,10 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+# Purpose: enumerate adapters and print their information, features, and limits.
+# APIs: Instance#enumerate_adapters, Instance#request_adapter, Adapter info/features/limits.
+# Expected: at least one adapter is printed on a configured GPU or lavapipe host.
+
 require_relative "../lib/wgpu"
 
 instance = WGPU::Instance.new

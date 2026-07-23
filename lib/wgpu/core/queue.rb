@@ -97,7 +97,6 @@ module WGPU
     end
 
     def read_texture(source:, data_layout:, size:, device:)
-      width = size[:width] || size[0]
       height = size[:height] || size[1] || 1
       depth = size[:depth_or_array_layers] || size[2] || 1
       bytes_per_row = data_layout[:bytes_per_row]

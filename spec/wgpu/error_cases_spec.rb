@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe "Error handling" do
+RSpec.describe "Error handling", :gpu do
   let(:instance) { WGPU::Instance.new }
   let(:adapter) { instance.request_adapter }
   let(:device) { adapter.request_device }

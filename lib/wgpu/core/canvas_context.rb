@@ -29,8 +29,6 @@ module WGPU
 
     def configure(device:, format: nil, usage: :render_attachment, view_formats: [], color_space: "srgb", tone_mapping: nil, alpha_mode: :opaque, width: nil, height: nil, present_mode: :fifo)
       ensure_surface
-      color_space # reserved for API parity
-      tone_mapping # reserved for API parity
 
       width = width || @physical_size[0]
       height = height || @physical_size[1]

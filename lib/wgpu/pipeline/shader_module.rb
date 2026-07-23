@@ -7,7 +7,7 @@ module WGPU
     def initialize(device, label: nil, code:, compilation_hints: [])
       @device = device
       @pointers = []
-      compilation_hints # currently unused by wgpu-native API
+      @compilation_hints = compilation_hints
 
       source_ptr = build_shader_source(code, label: label)
 

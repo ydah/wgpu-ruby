@@ -97,7 +97,7 @@ module WGPU
       @pointers << layouts_ptr
 
       buffers.each_with_index do |buf, i|
-        layout = Native::VertexBufferLayout.new(layouts_ptr + i * Native::VertexBufferLayout.size)
+        layout = Native::VertexBufferLayout.new(layouts_ptr + (i * Native::VertexBufferLayout.size))
         layout[:step_mode] = buf[:step_mode] || :vertex
         layout[:array_stride] = buf[:array_stride]
 
@@ -109,7 +109,7 @@ module WGPU
           attrs_ptr = FFI::MemoryPointer.new(Native::VertexAttribute, attrs.size)
           @pointers << attrs_ptr
           attrs.each_with_index do |attr, j|
-            a = Native::VertexAttribute.new(attrs_ptr + j * Native::VertexAttribute.size)
+            a = Native::VertexAttribute.new(attrs_ptr + (j * Native::VertexAttribute.size))
             a[:format] = attr[:format]
             a[:offset] = attr[:offset]
             a[:shader_location] = attr[:shader_location]
@@ -199,7 +199,7 @@ module WGPU
       @pointers << targets_ptr
 
       targets.each_with_index do |target, i|
-        ct = Native::ColorTargetState.new(targets_ptr + i * Native::ColorTargetState.size)
+        ct = Native::ColorTargetState.new(targets_ptr + (i * Native::ColorTargetState.size))
         ct[:next_in_chain] = nil
         ct[:format] = target[:format]
         ct[:write_mask] = normalize_write_mask(target[:write_mask])

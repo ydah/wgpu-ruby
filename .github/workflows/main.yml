@@ -1,9 +1,11 @@
 name: CI
+
 on:
   push:
     branches:
       - main
   pull_request:
+
 jobs:
   test:
     name: Ruby ${{ matrix.ruby }} / ${{ matrix.os }}
@@ -16,11 +18,11 @@ jobs:
           - macos-latest
           - windows-latest
         ruby:
-          - '3.2'
-          - '3.3'
-          - '3.4'
-          - '4.0'
-          - 'head'
+          - "3.2"
+          - "3.3"
+          - "3.4"
+          - "4.0"
+          - "head"
     steps:
       - uses: actions/checkout@v6
         with:
@@ -30,14 +32,75 @@ jobs:
         with:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
-      - name: Install dependencies (Ubuntu)
+      - name: Install Vulkan loader (Ubuntu)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libvulkan1 mesa-vulkan-drivers libgl1-mesa-dri
-      - name: Download wgpu-native
-        run: bundle exec ruby ext/wgpu/extconf.rb
-      - name: Run tests
+          sudo apt-get install -y libvulkan1
+      - name: Download and verify wgpu-native
+        run: bundle exec rake wgpu:install
+      - name: Run GPU-independent tests
+        run: bundle exec rspec --tag '~gpu'
+
+  no-native:
+    name: No native library
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+      - name: Run installer and distribution tests
         env:
-          WGPU_SKIP_GPU_TESTS: "1"
-        run: bundle exec rake spec
+          WGPU_NO_NATIVE: "1"
+        run: >-
+          bundle exec rspec --tag no_native
+          spec/wgpu/native/distribution_spec.rb
+          spec/wgpu/native/installer_spec.rb
+
+  lint:
+    name: RuboCop
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+      - run: bundle exec rubocop
+
+  gpu:
+    name: GPU integration (lavapipe)
+    runs-on: ubuntu-latest
+    env:
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+      WGPU_BACKEND: vulkan
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+      - name: Install lavapipe
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvulkan1 mesa-vulkan-drivers libgl1-mesa-dri vulkan-tools
+      - name: Verify Vulkan software adapter
+        run: vulkaninfo --summary
+      - name: Download and verify wgpu-native
+        run: bundle exec rake wgpu:install
+      - name: Run GPU tests and reject skips
+        run: |
+          mkdir -p tmp
+          bundle exec rspec --tag gpu --format progress --format json --out tmp/gpu-results.json
+          bundle exec ruby -rjson -e 'summary = JSON.parse(File.read("tmp/gpu-results.json")).fetch("summary"); abort "GPU examples skipped" unless summary.fetch("pending_count").zero?'
+      - name: Run compute examples
+        run: bundle exec rake examples:ci

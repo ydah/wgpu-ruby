@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "wgpu"
+require "wgpu" unless ENV["WGPU_NO_NATIVE"] == "1"
 
 module WGPUTestHelpers
   def self.gpu_available?
@@ -21,6 +21,10 @@ module WGPUTestHelpers
   rescue StandardError
     false
   end
+
+  def self.gpu_examples_selected?
+    RSpec.world.filtered_examples.values.flatten.any? { |example| example.metadata[:gpu] }
+  end
 end
 
 RSpec.configure do |config|
@@ -32,7 +36,11 @@ RSpec.configure do |config|
   end
 
   config.before(:suite) do
-    if WGPUTestHelpers.gpu_available?
+    if ENV["WGPU_NO_NATIVE"] == "1"
+      puts "Native library disabled: running :no_native tests"
+    elsif !WGPUTestHelpers.gpu_examples_selected?
+      puts "GPU tests excluded: running GPU-independent tests"
+    elsif WGPUTestHelpers.gpu_available?
       puts "GPU available: running all tests"
     else
       puts "GPU not available: skipping GPU-dependent tests"
@@ -40,10 +48,11 @@ RSpec.configure do |config|
   end
 
   config.around(:each) do |example|
-    if example.metadata[:skip_gpu_check] || WGPUTestHelpers.gpu_available?
-      example.run
-    else
+    requires_gpu = example.metadata[:gpu] && !example.metadata[:skip_gpu_check]
+    if requires_gpu && !WGPUTestHelpers.gpu_available?
       skip "GPU not available"
+    else
+      example.run
     end
   end
 end

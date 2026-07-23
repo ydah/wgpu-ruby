@@ -1,6 +1,10 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+# Purpose: apply a box blur as a two-dimensional compute workload.
+# APIs: storage buffers, compute pipeline/pass, 2D dispatch, queue readback.
+# Expected: the processed image values are printed without validation errors.
+
 require_relative "../lib/wgpu"
 
 SHADER_CODE = <<~WGSL
@@ -52,7 +56,7 @@ image = Array.new(width * height) { |i| ((i % width) + (i / width)).to_f }
 
 puts "\nInput image (#{width}x#{height}):"
 height.times do |y|
-  row = width.times.map { |x| image[y * width + x].round(1).to_s.rjust(4) }
+  row = width.times.map { |x| image[(y * width) + x].round(1).to_s.rjust(4) }
   puts "  #{row.join(' ')}"
 end
 
@@ -110,7 +114,7 @@ blurred = result.unpack("f*")
 
 puts "\nBlurred image (3x3 box filter):"
 height.times do |y|
-  row = width.times.map { |x| blurred[y * width + x].round(1).to_s.rjust(4) }
+  row = width.times.map { |x| blurred[(y * width) + x].round(1).to_s.rjust(4) }
   puts "  #{row.join(' ')}"
 end
 

@@ -1,0 +1,31 @@
+AllCops:
+  TargetRubyVersion: 3.2
+  NewCops: enable
+  SuggestExtensions: false
+  Exclude:
+    - "vendor/**/*"
+    - "tmp/**/*"
+
+Metrics:
+  Enabled: false
+
+Layout:
+  Enabled: false
+
+Style:
+  Enabled: false
+
+Naming:
+  Enabled: false
+
+Gemspec:
+  Enabled: false
+
+Lint/ScriptPermission:
+  Enabled: false
+
+Lint/SuppressedException:
+  Enabled: false
+
+Lint/ConstantDefinitionInBlock:
+  Enabled: false

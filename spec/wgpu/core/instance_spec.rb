@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe WGPU::Instance do
+RSpec.describe WGPU::Instance, :gpu do
   describe "#initialize" do
     it "creates a valid instance" do
       instance = WGPU::Instance.new

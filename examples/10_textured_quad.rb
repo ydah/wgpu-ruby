@@ -3,6 +3,8 @@
 
 # Example 10: Textured Quad
 # Demonstrates texture creation, sampling, and bind groups.
+# APIs: texture upload/view, sampler, bind group, render pipeline/pass.
+# Expected: a textured quad is visible until the window is closed.
 # Creates a procedural checkerboard texture and displays it on a quad.
 #
 # Requirements:

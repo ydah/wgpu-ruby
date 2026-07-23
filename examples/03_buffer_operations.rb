@@ -1,6 +1,10 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+# Purpose: demonstrate queue writes, buffer copies, mapping, and readback.
+# APIs: Device buffer creation, Queue#write_buffer/read_buffer, Buffer#map_sync.
+# Expected: each printed readback matches the data written or copied.
+
 require_relative "../lib/wgpu"
 
 instance = WGPU::Instance.new

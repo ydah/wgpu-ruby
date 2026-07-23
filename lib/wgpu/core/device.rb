@@ -304,8 +304,6 @@ module WGPU
       @handle = FFI::Pointer::NULL
     end
 
-    private
-
     def self.normalize_required_features(required_features)
       Array(required_features).map do |feature|
         normalize_feature_name(feature)
@@ -351,6 +349,11 @@ module WGPU
 
       raise ArgumentError, "Unknown limit key: #{name}"
     end
+
+    private_class_method :normalize_required_features, :normalize_feature_name,
+      :build_required_limits, :canonical_limit_key
+
+    private
 
     def data_to_pointer(data)
       case data

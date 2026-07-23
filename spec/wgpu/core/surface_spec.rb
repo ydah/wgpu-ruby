@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe WGPU::Surface do
+RSpec.describe WGPU::Surface, :gpu do
   let(:instance) { WGPU::Instance.new }
 
   after do

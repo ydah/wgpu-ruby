@@ -3,6 +3,8 @@
 
 # Example 07: Basic Triangle Rendering
 # Demonstrates the most basic WebGPU rendering: drawing a colored triangle to a window.
+# APIs: surface configuration, render pipeline/pass, Queue#submit, Surface#present.
+# Expected: a colored triangle is visible until the window is closed.
 #
 # Requirements:
 #   - SDL3 library installed (brew install sdl3 on macOS)

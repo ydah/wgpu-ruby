@@ -169,7 +169,7 @@ module WGPU
       @pointers << ptr
 
       attachments.each_with_index do |att, i|
-        ca = Native::RenderPassColorAttachment.new(ptr + i * Native::RenderPassColorAttachment.size)
+        ca = Native::RenderPassColorAttachment.new(ptr + (i * Native::RenderPassColorAttachment.size))
         ca[:next_in_chain] = nil
         ca[:view] = att[:view].handle
         ca[:depth_slice] = att[:depth_slice] || 0xFFFFFFFF

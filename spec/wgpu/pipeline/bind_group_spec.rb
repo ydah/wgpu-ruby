@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe WGPU::BindGroupLayout do
+RSpec.describe WGPU::BindGroupLayout, :gpu do
   let(:instance) { WGPU::Instance.new }
   let(:adapter) { instance.request_adapter }
   let(:device) { adapter.request_device }
@@ -69,7 +69,7 @@ RSpec.describe WGPU::BindGroupLayout do
   end
 end
 
-RSpec.describe WGPU::BindGroup do
+RSpec.describe WGPU::BindGroup, :gpu do
   let(:instance) { WGPU::Instance.new }
   let(:adapter) { instance.request_adapter }
   let(:device) { adapter.request_device }

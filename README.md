@@ -130,7 +130,8 @@ puts output_data[0, 10].inspect
 
 ## Examples
 
-See the `examples/` directory for more complete examples:
+See the [`examples/` guide](examples/README.md) for prerequisites, expected
+results, and more complete examples:
 
 Compute examples:
 - `01_adapter_info.rb` - Query GPU adapter information

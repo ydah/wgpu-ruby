@@ -3,6 +3,8 @@
 
 # Example 09: Animated Clear Color
 # Demonstrates the render loop with animated background color.
+# APIs: current surface texture/view, render-pass clear, queue submit, present.
+# Expected: the window background color changes over time.
 # No geometry is drawn - just clearing the screen with changing colors.
 #
 # Requirements:
@@ -49,8 +51,8 @@ while running
     # Calculate animated color based on time
     elapsed = Time.now - start_time
     r = (Math.sin(elapsed * 0.5) + 1.0) / 2.0
-    g = (Math.sin(elapsed * 0.7 + 2.0) + 1.0) / 2.0
-    b = (Math.sin(elapsed * 0.9 + 4.0) + 1.0) / 2.0
+    g = (Math.sin((elapsed * 0.7) + 2.0) + 1.0) / 2.0
+    b = (Math.sin((elapsed * 0.9) + 4.0) + 1.0) / 2.0
 
     # Get current texture from surface
     texture = surface.current_texture
