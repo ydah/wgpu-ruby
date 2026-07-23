@@ -38,9 +38,11 @@ RSpec.describe WGPU::QuerySet, :gpu do
   end
 
   describe "#destroy" do
-    it "destroys the query set" do
+    it "destroys and then releases the query set safely" do
       query_set = device.create_query_set(type: :occlusion, count: 2)
       expect { query_set.destroy }.not_to raise_error
+      expect { query_set.release }.not_to raise_error
+      expect(query_set).to be_released
     end
   end
 

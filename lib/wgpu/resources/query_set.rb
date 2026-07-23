@@ -2,10 +2,14 @@
 
 module WGPU
   class QuerySet
-    attr_reader :handle
+    attr_reader :handle, :count, :type
 
     def initialize(device, label: nil, type:, count:)
       @device = device
+      @count = Integer(count)
+      type_value = Native::EnumHelper.coerce(Native::QueryType, type, name: "query type")
+      @type = Native::QueryType[type_value]
+      @destroyed = false
 
       desc = Native::QuerySetDescriptor.new
       desc[:next_in_chain] = nil
@@ -17,28 +21,26 @@ module WGPU
         desc[:label][:data] = nil
         desc[:label][:length] = 0
       end
-      desc[:type] = Native::EnumHelper.coerce(Native::QueryType, type, name: "query type")
-      desc[:count] = count
+      desc[:type] = type_value
+      desc[:count] = @count
 
       @handle = Native.wgpuDeviceCreateQuerySet(device.handle, desc)
       raise ResourceError, "Failed to create query set" if @handle.null?
     end
 
-    def count
-      Native.wgpuQuerySetGetCount(@handle)
-    end
-
-    def type
-      Native.wgpuQuerySetGetType(@handle)
-    end
-
     def destroy
+      return if @destroyed
+
       Native.wgpuQuerySetDestroy(@handle)
+      @destroyed = true
     end
 
     def release
       return if @handle.null?
-      Native.wgpuQuerySetRelease(@handle)
+
+      # Pinned wgpu-native v27 removes a destroyed query set from its storage;
+      # calling Release afterward aborts inside Rust instead of being harmless.
+      Native.wgpuQuerySetRelease(@handle) unless @destroyed
       @handle = FFI::Pointer::NULL
     end
   end

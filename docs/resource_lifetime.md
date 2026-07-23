@@ -47,7 +47,7 @@ reference-counted handles.
 | `Texture` | ✅ | ✅ | Texture views should be released before their texture. |
 | `TextureView` | ✅ | — | `Texture#from_handle`/view wrappers are caller-owned. |
 | `Sampler` | ✅ | — | |
-| `QuerySet` | ✅ | ✅ | Destroy query storage, then release the reference. |
+| `QuerySet` | ✅ | ✅ | Destroy query storage, then release. The wrapper suppresses v27's aborting native double-removal path. |
 | `ShaderModule` | ✅ | — | |
 | `BindGroupLayout` | ✅ | — | Layouts returned by `get_bind_group_layout` are caller-owned. |
 | `BindGroup` | ✅ | — | |
