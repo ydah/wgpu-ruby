@@ -418,5 +418,11 @@ module WGPU
 
     attach_function :wgpuRenderBundleEncoderInsertDebugMarker,
                     [:pointer, StringView.by_value], :void
+
+    attach_optional_function :wgpuSetLogCallback,
+                             [:log_callback, :pointer], :void
+
+    attach_optional_function :wgpuSetLogLevel,
+                             [LogLevel], :void
   end
 end

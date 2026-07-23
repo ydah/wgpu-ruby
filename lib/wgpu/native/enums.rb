@@ -534,6 +534,15 @@ module WGPU
       :info, 0x00000003
     )
 
+    LogLevel = enum(
+      :off, 0x00000000,
+      :error, 0x00000001,
+      :warn, 0x00000002,
+      :info, 0x00000003,
+      :debug, 0x00000004,
+      :trace, 0x00000005
+    )
+
     FeatureName = enum(
       :undefined, 0x00000000,
       :depth_clip_control, 0x00000001,

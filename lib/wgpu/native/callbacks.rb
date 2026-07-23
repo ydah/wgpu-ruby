@@ -22,5 +22,8 @@ module WGPU
 
     callback :queue_work_done_callback,
              [QueueWorkDoneStatus, :pointer, :pointer], :void
+
+    callback :log_callback,
+             [LogLevel, StringView.by_value, :pointer], :void
   end
 end

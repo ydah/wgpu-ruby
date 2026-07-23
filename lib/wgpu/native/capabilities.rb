@@ -21,6 +21,11 @@ module WGPU
       def buffer_map_state_available?
         Distribution::VERSION != "v27.0.4.0"
       end
+
+      def logging_available?
+        optional_function_available?(:wgpuSetLogCallback) &&
+          optional_function_available?(:wgpuSetLogLevel)
+      end
     end
   end
 end

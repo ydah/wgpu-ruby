@@ -26,3 +26,15 @@ recreating the native device. Without a handler, uncaptured errors and
 unexpected device loss are written as warnings. Exceptions raised by a user
 handler are caught at the FFI boundary and reported as warnings rather than
 escaping through native callback code.
+
+wgpu-native's process-wide diagnostic log can be routed into an application:
+
+```ruby
+WGPU.on_log do |level, message|
+  MyLogger.public_send(level == :warn ? :warn : :debug, message)
+end
+WGPU.log_level = :info
+```
+
+The callback is retained for the process lifetime (or until replaced), so a
+Ruby GC cycle cannot invalidate the native callback pointer.
