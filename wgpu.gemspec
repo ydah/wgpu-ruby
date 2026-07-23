@@ -17,12 +17,19 @@ Gem::Specification.new do |spec|
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = "https://github.com/ydah/wgpu-ruby"
 
-  spec.files = Dir["lib/**/*", "ext/**/*", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+  spec.files = Dir[
+    "lib/**/*",
+    "ext/**/*",
+    "docs/**/*.md",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE-MIT",
+    "LICENSE-APACHE"
+  ]
   spec.require_paths = ["lib"]
 
   spec.extensions = ["ext/wgpu/extconf.rb"]
 
   spec.add_dependency "ffi", "~> 1.15"
   spec.add_dependency "rubyzip", "~> 2.3"
-  spec.add_dependency "sdl3", "~> 1.0.0"
 end

@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add typed buffer data, texture layout, shader diagnostics, GPU errors, and
+  synchronous timeout APIs.
+- Add ensure-safe command pass blocks, auto pipeline layouts, resource guards,
+  leak diagnostics, and callback keepalive.
+- Add checksum-verified wgpu-native installation and ABI verification.
+
+### Changed
+
+- Make the SDL3 Ruby gem optional for compute-only users.
+- Validate descriptor shapes, enum values, buffer alignment, and texture
+  readback layout before native calls.
+
+### Fixed
+
+- Correct `CompareFunction` values and add missing v27 surface status and
+  vertex format enum entries discovered by header verification.
+
 ## 1.1.0 - 2026-02-16
 
 - Align bindings with wgpu v27 async ABI.

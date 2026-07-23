@@ -1,6 +1,13 @@
 # frozen_string_literal: true
 
-require "sdl3"
+begin
+  require "sdl3"
+rescue LoadError => e
+  raise LoadError,
+    "wgpu/window requires the optional `sdl3` gem. " \
+    "Add `gem \"sdl3\", \"~> 1.0\"` and install the SDL3 system library. " \
+    "(original error: #{e.message})"
+end
 
 module WGPU
   module Window

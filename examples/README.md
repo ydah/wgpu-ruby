@@ -30,8 +30,9 @@ These open a window and remain manual integration checks:
 |---|---|---|
 | `07_triangle.rb` | Basic render pipeline | A colored triangle is visible. |
 | `08_colored_quad.rb` | Vertex and index buffers | A colored quad is visible. |
-| `09_clear_color.rb` | Animated clear pass | The background color changes over time. |
+| `09_clear_color.rb` | Animated clear pass and resize | The background follows the resized drawable. |
 | `10_textured_quad.rb` | Texture upload and sampling | A checkerboard/textured quad is visible. |
 | `11_rotating_cube.rb` | Uniforms and depth testing | A depth-tested cube rotates. |
 
-Install SDL3 before running these. Press Escape or close the window to exit.
+Add `gem "sdl3", "~> 1.0"` to your application and install the SDL3 system
+library before running these. Press Escape or close the window to exit.

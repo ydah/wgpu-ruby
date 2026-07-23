@@ -64,6 +64,23 @@ jobs:
           spec/wgpu/native/distribution_spec.rb
           spec/wgpu/native/installer_spec.rb
 
+  no-sdl:
+    name: Core install without SDL3
+    runs-on: ubuntu-latest
+    env:
+      BUNDLE_WITHOUT: examples
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+      - run: bundle exec rake wgpu:install
+      - name: Require core without loading SDL3
+        run: bundle exec ruby -Ilib -e 'require "wgpu"; abort "SDL3 unexpectedly loaded" if defined?(SDL3)'
+
   lint:
     name: RuboCop
     runs-on: ubuntu-latest

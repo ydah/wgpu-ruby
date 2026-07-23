@@ -3,8 +3,8 @@
 
 # Example 09: Animated Clear Color
 # Demonstrates the render loop with animated background color.
-# APIs: current surface texture/view, render-pass clear, queue submit, present.
-# Expected: the window background color changes over time.
+# APIs: resizable surface configuration, texture/view, render pass, present.
+# Expected: the animated background follows the drawable size after resizing.
 # No geometry is drawn - just clearing the screen with changing colors.
 #
 # Requirements:
@@ -48,6 +48,8 @@ while running
   next unless running
 
   begin
+    ExampleRendering.resize_if_needed(render)
+
     # Calculate animated color based on time
     elapsed = Time.now - start_time
     r = (Math.sin(elapsed * 0.5) + 1.0) / 2.0

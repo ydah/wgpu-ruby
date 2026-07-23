@@ -159,10 +159,13 @@ Rendering examples require SDL3 on your system:
 ```bash
 # macOS
 brew install sdl3
+
+# Gemfile
+gem "sdl3", "~> 1.0"
 ```
 
-The current gem release also installs the `sdl3` Ruby gem as a runtime
-dependency, although `require "wgpu"` itself does not load the window helper.
+The core `wgpu` gem does not depend on SDL3. Only code that explicitly requires
+`wgpu/window` needs the optional Ruby gem and system library.
 
 ## API Overview
 

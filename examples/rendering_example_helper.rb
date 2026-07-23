@@ -13,6 +13,9 @@ module ExampleRendering
     :device,
     :queue,
     :format,
+    :width,
+    :height,
+    :present_mode,
     keyword_init: true
   )
 
@@ -42,8 +45,28 @@ module ExampleRendering
       adapter: adapter,
       device: device,
       queue: queue,
-      format: format
+      format: format,
+      width: width,
+      height: height,
+      present_mode: present_mode
     )
+  end
+
+  def self.resize_if_needed(setup)
+    width, height = setup.window.drawable_size
+    return false if width <= 0 || height <= 0
+    return false if width == setup.width && height == setup.height
+
+    setup.surface.configure(
+      device: setup.device,
+      format: setup.format,
+      width: width,
+      height: height,
+      present_mode: setup.present_mode
+    )
+    setup.width = width
+    setup.height = height
+    true
   end
 
   def self.cleanup(setup)
