@@ -3,7 +3,7 @@
 
 # Purpose: double an f32 storage buffer with a compute shader.
 # APIs: buffers, auto layout, omitted entry point, override constants, compute pass, readback.
-# Expected: output values are twice the input values and the script prints SUCCESS.
+# Expected: output values are twice the input values and verification passes.
 
 require_relative "../lib/wgpu"
 
@@ -68,12 +68,16 @@ queue.submit([command_buffer])
 
 result = queue.read_buffer(buffer, device: device)
 output_data = result.unpack("f*")
+expected_output = input_data.map { |x| x * 2.0 }
+verified = output_data == expected_output
 
 puts "Output (first 10): #{output_data[0, 10].inspect}"
-puts "\nVerification: #{output_data == input_data.map { |x| x * 2.0 } ? 'PASSED' : 'FAILED'}"
+puts "\nVerification: #{verified ? 'PASSED' : 'FAILED'}"
 
 [command_buffer, pass, encoder, bind_group, bind_group_layout, pipeline, shader, buffer].each(&:release)
 device.release
 adapter.release
 instance.release
+abort "Compute result verification FAILED" unless verified
+
 puts "Done!"

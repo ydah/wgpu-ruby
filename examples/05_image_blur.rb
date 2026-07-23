@@ -3,7 +3,7 @@
 
 # Purpose: apply a box blur as a two-dimensional compute workload.
 # APIs: storage buffers, compute pipeline/pass, 2D dispatch, queue readback.
-# Expected: the processed image values are printed without validation errors.
+# Expected: the GPU result matches a CPU implementation of the box blur.
 
 require_relative "../lib/wgpu"
 
@@ -118,8 +118,27 @@ height.times do |y|
   puts "  #{row.join(' ')}"
 end
 
+expected = Array.new(width * height) do |index|
+  x = index % width
+  y = index / width
+  samples = (-1..1).flat_map do |dy|
+    (-1..1).filter_map do |dx|
+      neighbor_x = x + dx
+      neighbor_y = y + dy
+      next unless neighbor_x.between?(0, width - 1) && neighbor_y.between?(0, height - 1)
+
+      image[(neighbor_y * width) + neighbor_x]
+    end
+  end
+  samples.sum / samples.length
+end
+verified = blurred.zip(expected).all? { |actual, expected_value| (actual - expected_value).abs < 0.001 }
+puts "\nVerification: #{verified ? 'PASSED' : 'FAILED'}"
+
 [input_buffer, output_buffer, params_buffer, shader, bind_group_layout, bind_group, pipeline_layout, pipeline, encoder].each(&:release)
 device.release
 adapter.release
 instance.release
+abort "Image blur verification FAILED" unless verified
+
 puts "\nDone!"

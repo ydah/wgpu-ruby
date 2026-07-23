@@ -50,7 +50,8 @@ map_buffer.unmap
 puts "Map state after unmap: #{map_buffer.map_state}"
 
 read_back = queue.read_buffer(map_buffer, device: device)
-puts "Read back via queue: #{read_back.unpack('f*').inspect}"
+mapped_data = read_back.unpack("f*")
+puts "Read back via queue: #{mapped_data.inspect}"
 
 puts "\n--- 5. Buffer copy ---"
 src_buffer = device.create_buffer_with_data(
@@ -75,8 +76,18 @@ copied = dst_buffer.read_mapped_floats(count: 4)
 puts "Copied data: #{copied.inspect}"
 dst_buffer.unmap
 
+checks = {
+  "queue write" => read_data == new_data,
+  "mapped-at-creation write" => mapped_data == [100.0, 200.0, 300.0, 400.0],
+  "buffer copy" => copied == [1.0, 2.0, 3.0, 4.0]
+}
+failures = checks.reject { |_operation, passed| passed }.keys
+puts "\nVerification: #{failures.empty? ? 'PASSED' : 'FAILED'}"
+
 [buffer, map_buffer, src_buffer, dst_buffer, encoder].each(&:release)
 device.release
 adapter.release
 instance.release
+abort "Buffer verification FAILED: #{failures.join(', ')}" unless failures.empty?
+
 puts "\nDone!"

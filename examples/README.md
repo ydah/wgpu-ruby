@@ -10,10 +10,10 @@ These do not require SDL3 and are suitable for a GPU/lavapipe CI worker:
 | Example | Purpose | Expected result |
 |---|---|---|
 | `01_adapter_info.rb` | Enumerate and inspect adapters | Prints at least one adapter and its capabilities. |
-| `02_compute_basic.rb` | Double an f32 storage buffer | Prints doubled values and `SUCCESS`. |
-| `03_buffer_operations.rb` | Exercise upload/copy/map/readback | Each operation prints the expected values. |
+| `02_compute_basic.rb` | Double an f32 storage buffer | Prints doubled values and `Verification: PASSED`. |
+| `03_buffer_operations.rb` | Exercise upload/copy/map/readback | Each operation is checked and verification passes. |
 | `04_matrix_multiply.rb` | Multiply matrices in a compute shader | CPU and GPU results compare successfully. |
-| `05_image_blur.rb` | Apply a box blur | Prints the processed image/result and succeeds. |
+| `05_image_blur.rb` | Apply a box blur | GPU output matches an independently computed CPU result. |
 | `06_parallel_reduction.rb` | Sum values through repeated dispatch | GPU sum matches the expected sum. |
 | `12_headless_render.rb` | Render without SDL3/surface | Center triangle pixel is red and corner clear pixel is blue. |
 | `13_error_handling.rb` | Show labeled Ruby validation errors | Prints the typed error and passes. |

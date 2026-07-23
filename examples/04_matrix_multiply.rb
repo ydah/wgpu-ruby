@@ -137,4 +137,6 @@ puts "\nVerification: #{match ? 'PASSED' : 'FAILED'}"
 device.release
 adapter.release
 instance.release
+abort "Matrix multiplication verification FAILED" unless match
+
 puts "Done!"

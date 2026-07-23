@@ -89,13 +89,16 @@ end
 
 result = queue.read_buffer(data_buffer, size: 4, device: device)
 gpu_sum = result.unpack1("f")
+verified = (gpu_sum - expected_sum).abs < 0.001
 
 puts "GPU sum: #{gpu_sum.to_i}"
 puts "Iterations: #{iterations}"
-puts "Verification: #{(gpu_sum - expected_sum).abs < 0.001 ? 'PASSED' : 'FAILED'}"
+puts "Verification: #{verified ? 'PASSED' : 'FAILED'}"
 
 [data_buffer, stride_buffer, shader, bind_group_layout, bind_group, pipeline_layout, pipeline].each(&:release)
 device.release
 adapter.release
 instance.release
+abort "Parallel reduction verification FAILED" unless verified
+
 puts "Done!"
