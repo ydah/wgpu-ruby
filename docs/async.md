@@ -19,6 +19,11 @@ That release also exports `wgpuBufferGetMapState` as an unimplemented panic
 stub. `Buffer#map_state` is maintained by wgpu-ruby as `:unmapped`,
 `:pending`, or `:mapped` while map operations run.
 
+The exported `wgpuDeviceCreateComputePipelineAsync` and
+`wgpuDeviceCreateRenderPipelineAsync` functions are also panic stubs in
+wgpu-native v27. Pipeline `*_async` methods therefore retain the safe Ruby
+Thread implementation until those native entry points are implemented.
+
 Synchronous adapter/device requests, `Buffer#map_sync`,
 `Device#pop_error_scope`, and `Queue#on_submitted_work_done` accept
 `timeout:` in seconds. The default `nil` preserves the prior unbounded wait.

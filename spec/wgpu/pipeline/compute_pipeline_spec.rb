@@ -57,6 +57,21 @@ RSpec.describe WGPU::ComputePipeline, :gpu do
       shader.release
     end
 
+    it "selects the sole compute entry point when entry_point is omitted" do
+      shader = device.create_shader_module(
+        code: "@compute @workgroup_size(1) fn only_compute_entry() {}"
+      )
+      pipeline = device.create_compute_pipeline(
+        layout: :auto,
+        compute: { module: shader }
+      )
+
+      expect(pipeline.handle).not_to be_null
+
+      pipeline.release
+      shader.release
+    end
+
     it "creates a compute pipeline with bind group layout" do
       shader = device.create_shader_module(code: <<~WGSL)
         @group(0) @binding(0) var<storage, read_write> data: array<f32>;
@@ -148,6 +163,18 @@ RSpec.describe WGPU::ComputePipeline, :gpu do
 
       pipeline.release
       layout.release
+      shader.release
+    end
+
+    it "reports invalid compute pipelines through AsyncTask#value" do
+      shader = device.create_shader_module(code: "@compute @workgroup_size(1) fn main() {}")
+      task = device.create_compute_pipeline_async(
+        layout: :auto,
+        compute: { module: shader, entry_point: "missing" }
+      )
+
+      expect { task.value }.to raise_error(WGPU::PipelineError)
+
       shader.release
     end
   end

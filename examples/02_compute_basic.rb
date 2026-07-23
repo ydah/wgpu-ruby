@@ -2,18 +2,19 @@
 # frozen_string_literal: true
 
 # Purpose: double an f32 storage buffer with a compute shader.
-# APIs: buffers, auto pipeline layout, bind groups, compute pass, queue readback.
+# APIs: buffers, auto layout, omitted entry point, override constants, compute pass, readback.
 # Expected: output values are twice the input values and the script prints SUCCESS.
 
 require_relative "../lib/wgpu"
 
 SHADER_CODE = <<~WGSL
+  override multiplier: f32 = 1.0;
   @group(0) @binding(0) var<storage, read_write> data: array<f32>;
 
   @compute @workgroup_size(64)
-  fn main(@builtin(global_invocation_id) id: vec3<u32>) {
+  fn double_values(@builtin(global_invocation_id) id: vec3<u32>) {
     let i = id.x;
-    data[i] = data[i] * 2.0;
+    data[i] = data[i] * multiplier;
   }
 WGSL
 
@@ -41,7 +42,7 @@ shader = device.create_shader_module(label: "compute shader", code: SHADER_CODE)
 
 pipeline = device.create_compute_pipeline(
   layout: :auto,
-  compute: { module: shader, entry_point: "main" }
+  compute: { module: shader, constants: { multiplier: 2.0 } }
 )
 bind_group_layout = pipeline.get_bind_group_layout(0)
 
@@ -71,7 +72,7 @@ output_data = result.unpack("f*")
 puts "Output (first 10): #{output_data[0, 10].inspect}"
 puts "\nVerification: #{output_data == input_data.map { |x| x * 2.0 } ? 'PASSED' : 'FAILED'}"
 
-[buffer, shader, bind_group_layout, bind_group, pipeline, encoder].each(&:release)
+[command_buffer, pass, encoder, bind_group, bind_group_layout, pipeline, shader, buffer].each(&:release)
 device.release
 adapter.release
 instance.release

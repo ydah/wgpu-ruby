@@ -96,6 +96,23 @@ RSpec.describe WGPU::RenderPipeline, :gpu do
       vertex_shader.release
     end
 
+    it "selects the sole vertex and fragment entry points when entry_point is omitted" do
+      pipeline = device.create_render_pipeline(
+        layout: :auto,
+        vertex: { module: vertex_shader },
+        fragment: {
+          module: fragment_shader,
+          targets: [{ format: :rgba8_unorm }]
+        }
+      )
+
+      expect(pipeline.handle).not_to be_null
+
+      pipeline.release
+      fragment_shader.release
+      vertex_shader.release
+    end
+
     it "creates a render pipeline with primitive settings" do
       layout = device.create_pipeline_layout(bind_group_layouts: [])
       pipeline = device.create_render_pipeline(
@@ -231,6 +248,23 @@ RSpec.describe WGPU::RenderPipeline, :gpu do
 
       pipeline.release
       layout.release
+      fragment_shader.release
+      vertex_shader.release
+    end
+
+    it "reports invalid render pipelines through AsyncTask#value" do
+      task = device.create_render_pipeline_async(
+        layout: :auto,
+        vertex: { module: vertex_shader, entry_point: "missing" },
+        fragment: {
+          module: fragment_shader,
+          entry_point: "fs_main",
+          targets: [{ format: :rgba8_unorm }]
+        }
+      )
+
+      expect { task.value }.to raise_error(WGPU::PipelineError)
+
       fragment_shader.release
       vertex_shader.release
     end

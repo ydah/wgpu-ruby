@@ -5,13 +5,13 @@ WebGPU pipeline descriptors. Passing `layout: :auto`, `"auto"`, or `nil` request
 automatic layout inference. A layout object continues to select an explicit
 pipeline layout.
 
-## Default render state
+## Default pipeline state
 
 The wrapper applies the following WebGPU defaults when a field is omitted:
 
 | State | Field | Default |
 |---|---|---|
-| Vertex | `entry_point` | `"main"` |
+| Vertex/fragment/compute | `entry_point` | omitted (`nil`) |
 | Vertex buffer | `step_mode` | `:vertex` |
 | Primitive | `topology` | `:triangle_list` |
 | Primitive | `strip_index_format` | `:undefined` |
@@ -32,6 +32,11 @@ The wrapper applies the following WebGPU defaults when a field is omitted:
 `shader_location`, and each color target's `format` are required. A
 depth/stencil state requires `format`. Unknown descriptor keys produce a warning
 so misspellings are visible while preserving v1.x compatibility.
+
+When `entry_point` is omitted, the wrapper passes WebGPU's nullable string
+sentinel to wgpu-native. Native pipeline creation then selects the sole matching
+entry point in that shader stage. Specify `entry_point:` when a stage contains
+multiple matching entry points.
 
 Both vertex/fragment and compute stages accept `constants:`, a Hash mapping WGSL
 override names to numeric values. The descriptor keeps all FFI strings and

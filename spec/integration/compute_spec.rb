@@ -63,6 +63,61 @@ RSpec.describe "Compute Pipeline Integration", :gpu do
       shader.release
     end
 
+    it "applies override constants to compute results" do
+      shader = device.create_shader_module(code: <<~WGSL)
+        override multiplier: f32 = 1.0;
+        @group(0) @binding(0) var<storage, read_write> data: array<f32>;
+
+        @compute @workgroup_size(1)
+        fn apply_multiplier() {
+          data[0] *= multiplier;
+        }
+      WGSL
+      buffer = device.create_buffer_with_data(
+        data: [2.0],
+        usage: [:storage, :copy_src]
+      )
+      bind_group_layout = device.create_bind_group_layout(entries: [
+        { binding: 0, visibility: :compute, buffer: { type: :storage } }
+      ])
+      pipeline_layout = device.create_pipeline_layout(bind_group_layouts: [bind_group_layout])
+      pipeline = device.create_compute_pipeline(
+        layout: pipeline_layout,
+        compute: {
+          module: shader,
+          entry_point: "apply_multiplier",
+          constants: { multiplier: 3.0 }
+        }
+      )
+      bind_group = device.create_bind_group(
+        layout: bind_group_layout,
+        entries: [{ binding: 0, buffer: buffer }]
+      )
+
+      encoder = device.create_command_encoder
+      pass = encoder.begin_compute_pass
+      pass.set_pipeline(pipeline)
+      pass.set_bind_group(0, bind_group)
+      pass.dispatch_workgroups(1)
+      pass.end_pass
+      command_buffer = encoder.finish
+      device.queue.submit([command_buffer])
+      device.poll(wait: true)
+
+      result = device.queue.read_buffer(buffer, device: device)
+      expect(result.unpack1("f")).to eq(6.0)
+
+      command_buffer.release
+      pass.release
+      encoder.release
+      bind_group.release
+      pipeline.release
+      pipeline_layout.release
+      bind_group_layout.release
+      buffer.release
+      shader.release
+    end
+
     it "adds two buffers element-wise" do
       shader = device.create_shader_module(code: <<~WGSL)
         @group(0) @binding(0) var<storage, read> a: array<f32>;

@@ -66,15 +66,12 @@ module WGPU
       vertex_state[:next_in_chain] = nil
       vertex_state[:module] = vertex[:module].handle
 
-      entry_point = vertex[:entry_point] || "main"
-      entry_ptr = FFI::MemoryPointer.from_string(entry_point)
-      @pointers << entry_ptr
-      vertex_state[:entry_point][:data] = entry_ptr
-      vertex_state[:entry_point][:length] = entry_point.bytesize
-
-      vertex_state[:constant_count] = 0
-      vertex_state[:constants] = nil
-      setup_constants(vertex_state, vertex[:constants])
+      DescriptorHelpers.set_nullable_string_view(
+        vertex_state[:entry_point],
+        vertex[:entry_point],
+        keepalive: @pointers
+      )
+      DescriptorHelpers.set_constants(vertex_state, vertex[:constants], keepalive: @pointers)
 
       buffers = vertex[:buffers] || []
       if buffers.empty?
@@ -256,15 +253,12 @@ module WGPU
       frag[:next_in_chain] = nil
       frag[:module] = fragment[:module].handle
 
-      entry_point = fragment[:entry_point] || "main"
-      entry_ptr = FFI::MemoryPointer.from_string(entry_point)
-      @pointers << entry_ptr
-      frag[:entry_point][:data] = entry_ptr
-      frag[:entry_point][:length] = entry_point.bytesize
-
-      frag[:constant_count] = 0
-      frag[:constants] = nil
-      setup_constants(frag, fragment[:constants])
+      DescriptorHelpers.set_nullable_string_view(
+        frag[:entry_point],
+        fragment[:entry_point],
+        keepalive: @pointers
+      )
+      DescriptorHelpers.set_constants(frag, fragment[:constants], keepalive: @pointers)
 
       targets = fragment[:targets] || []
       if targets.empty?
@@ -362,29 +356,6 @@ module WGPU
     def normalize_layout(layout)
       return nil if layout.nil? || layout == :auto || layout == "auto"
       layout.handle
-    end
-
-    def setup_constants(stage_state, constants)
-      return if constants.nil? || constants.empty?
-
-      constants_ptr = FFI::MemoryPointer.new(Native::ConstantEntry, constants.size)
-      @pointers << constants_ptr
-
-      constants.each_with_index do |(key, value), i|
-        entry_ptr = constants_ptr + (i * Native::ConstantEntry.size)
-        entry = Native::ConstantEntry.new(entry_ptr)
-        entry[:next_in_chain] = nil
-
-        key_str = key.to_s
-        key_ptr = FFI::MemoryPointer.from_string(key_str)
-        @pointers << key_ptr
-        entry[:key][:data] = key_ptr
-        entry[:key][:length] = key_str.bytesize
-        entry[:value] = value.to_f
-      end
-
-      stage_state[:constant_count] = constants.size
-      stage_state[:constants] = constants_ptr
     end
   end
 end

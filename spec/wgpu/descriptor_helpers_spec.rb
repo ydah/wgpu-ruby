@@ -100,6 +100,11 @@ RSpec.describe WGPU::DescriptorHelpers, :skip_gpu_check do
     expect(descriptor[:multisample][:alpha_to_coverage_enabled]).to eq(0)
     expect(descriptor[:vertex][:buffer_count]).to eq(1)
     expect(descriptor[:fragment]).not_to be_null
+    expect(descriptor[:vertex][:entry_point][:data]).to be_null
+    expect(descriptor[:vertex][:entry_point][:length]).to eq(described_class::SIZE_MAX)
+    fragment = WGPU::Native::FragmentState.new(descriptor[:fragment])
+    expect(fragment[:entry_point][:data]).to be_null
+    expect(fragment[:entry_point][:length]).to eq(described_class::SIZE_MAX)
     expect(keepalive).not_to be_empty
   end
 
@@ -113,6 +118,8 @@ RSpec.describe WGPU::DescriptorHelpers, :skip_gpu_check do
     )
 
     expect(descriptor[:layout]).to be_null
+    expect(descriptor[:compute][:entry_point][:data]).to be_null
+    expect(descriptor[:compute][:entry_point][:length]).to eq(described_class::SIZE_MAX)
     expect(descriptor[:compute][:constant_count]).to eq(1)
     expect(descriptor[:compute][:constants]).not_to be_null
     expect(keepalive.length).to be >= 2
