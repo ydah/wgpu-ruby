@@ -15,12 +15,15 @@ These do not require SDL3 and are suitable for a GPU/lavapipe CI worker:
 | `04_matrix_multiply.rb` | Multiply matrices in a compute shader | CPU and GPU results compare successfully. |
 | `05_image_blur.rb` | Apply a box blur | Prints the processed image/result and succeeds. |
 | `06_parallel_reduction.rb` | Sum values through repeated dispatch | GPU sum matches the expected sum. |
+| `12_headless_render.rb` | Render without SDL3/surface | Center triangle pixel is red and corner clear pixel is blue. |
 
-Run all six:
+Run all compute and headless examples:
 
 ```bash
 bundle exec rake examples:ci
 ```
+
+Set `WGPU_HEADLESS_OUTPUT=triangle.ppm` to save the headless render result.
 
 ## SDL3 rendering examples
 
