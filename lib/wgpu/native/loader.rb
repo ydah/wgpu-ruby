@@ -1,53 +1,42 @@
 # frozen_string_literal: true
 
 require "ffi"
-require "rbconfig"
+require_relative "distribution"
 
 module WGPU
   module Native
     extend FFI::Library
 
-    WGPU_VERSION = "v27.0.4.0"
-
     class << self
       def library_path
-        if ENV["WGPU_LIB_PATH"]
-          path = ENV["WGPU_LIB_PATH"]
+        if ENV["WGPU_LIB_PATH"] && !ENV["WGPU_LIB_PATH"].empty?
+          path = File.expand_path(ENV["WGPU_LIB_PATH"])
           raise LoadError, "WGPU_LIB_PATH points to non-existent file: #{path}" unless File.exist?(path)
           return path
         end
 
-        cached_path = File.join(cache_dir, "lib", library_name)
-        return cached_path if File.exist?(cached_path)
+        cached_path = Distribution.library_paths.find { |path| File.file?(path) }
+        return cached_path if cached_path
 
         raise LoadError, <<~MSG
           wgpu-native library not found.
-          Expected at: #{cached_path}
+          Searched:
+            #{Distribution.library_paths.join("\n  ")}
 
           Try reinstalling the gem:
             gem install wgpu
 
           Or set WGPU_LIB_PATH environment variable to your custom wgpu-native build.
+          See docs/installation.md for manual installation instructions.
         MSG
       end
 
       def cache_dir
-        File.join(Dir.home, ".cache", "wgpu-ruby", WGPU_VERSION)
+        Distribution.primary_cache_dir
       end
 
       def library_name
-        case host_os
-        when /linux/ then "libwgpu_native.so"
-        when /darwin/ then "libwgpu_native.dylib"
-        when /mingw|mswin/ then "wgpu_native.dll"
-        else raise LoadError, "Unsupported OS: #{host_os}"
-        end
-      end
-
-      private
-
-      def host_os
-        RbConfig::CONFIG["host_os"]
+        Distribution.artifact_for.fetch(:library)
       end
     end
 

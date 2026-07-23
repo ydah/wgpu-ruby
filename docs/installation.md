@@ -31,9 +31,11 @@ The binding targets wgpu-native `v27.0.4.0` from:
 
 1. If `WGPU_LIB_PATH` is set, installation skips the download and runtime
    loading uses that exact file.
-2. Otherwise the runtime looks for the platform library under
-   `~/.cache/wgpu-ruby/v27.0.4.0/lib/`.
-3. If the cached library is absent, reinstall the gem or run
+2. Otherwise the runtime uses the first configured cache location:
+   `WGPU_CACHE_DIR`, `XDG_CACHE_HOME`, then the operating-system default.
+3. The legacy `~/.cache/wgpu-ruby/v27.0.4.0/lib/` location is also searched so
+   an existing installation does not require another download.
+4. If the cached library is absent, reinstall the gem or run
    `bundle exec ruby ext/wgpu/extconf.rb` from a source checkout.
 
 Download uses `curl` when available, then Ruby `Net::HTTP`. Extraction uses
@@ -65,7 +67,21 @@ this gem.
 | Variable | Meaning |
 |---|---|
 | `WGPU_LIB_PATH` | Absolute path to a custom wgpu-native shared library; highest priority. |
+| `WGPU_CACHE_DIR` | wgpu-ruby cache root override. The version directory is created directly beneath it. |
+| `XDG_CACHE_HOME` | Cache base on Unix when `WGPU_CACHE_DIR` is unset. |
 | `WGPU_SKIP_GPU_TESTS=1` | Skip tests that require an adapter. This is a test setting, not a runtime backend selector. |
+
+Default cache paths are:
+
+| Platform | Versioned cache directory |
+|---|---|
+| macOS | `~/Library/Caches/wgpu-ruby/v27.0.4.0/` |
+| Linux/other Unix | `~/.cache/wgpu-ruby/v27.0.4.0/` |
+| Windows | `%LOCALAPPDATA%\wgpu-ruby\v27.0.4.0\` |
+
+Every downloaded archive is checked against the SHA-256 digest recorded in
+`lib/wgpu/native/distribution.rb` before extraction. A mismatch deletes the
+archive and stops installation.
 
 ## Troubleshooting
 
