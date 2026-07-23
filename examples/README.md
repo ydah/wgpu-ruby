@@ -16,6 +16,9 @@ These do not require SDL3 and are suitable for a GPU/lavapipe CI worker:
 | `05_image_blur.rb` | Apply a box blur | Prints the processed image/result and succeeds. |
 | `06_parallel_reduction.rb` | Sum values through repeated dispatch | GPU sum matches the expected sum. |
 | `12_headless_render.rb` | Render without SDL3/surface | Center triangle pixel is red and corner clear pixel is blue. |
+| `13_error_handling.rb` | Show labeled Ruby validation errors | Prints the typed error and passes. |
+| `14_async_map.rb` | Map a copied buffer asynchronously | Prints `[10, 20, 30, 40]` after a GC cycle. |
+| `15_timestamp_query.rb` | Resolve pass timestamps | Prints a non-negative tick delta, or an explicit unsupported skip. |
 
 Run all compute and headless examples:
 

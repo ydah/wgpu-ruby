@@ -7,6 +7,13 @@ require_relative "lib/wgpu/native/installer"
 
 RSpec::Core::RakeTask.new(:spec)
 
+begin
+  require "yard"
+  YARD::Rake::YardocTask.new(:yard)
+rescue LoadError
+  # Keep installation tasks usable before development dependencies are installed.
+end
+
 namespace :wgpu do
   desc "Download and verify the pinned wgpu-native artifact"
   task :install do
@@ -33,9 +40,10 @@ namespace :wgpu do
 end
 
 namespace :examples do
-  desc "Run compute examples suitable for headless CI"
+  desc "Run compute and render-to-texture examples suitable for headless CI"
   task :ci do
-    Rake::FileList["examples/0[1-6]_*.rb"].sort.each do |example|
+    examples = Rake::FileList["examples/0[1-6]_*.rb", "examples/1[2-5]_*.rb"]
+    examples.sort.each do |example|
       sh RbConfig.ruby, example
     end
   end

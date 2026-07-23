@@ -30,7 +30,7 @@ Legend:
 | `GPUCommandBuffer` | `WGPU::CommandBuffer` | ✅ | |
 | `GPUCommandEncoder` | `WGPU::CommandEncoder` | ✅ | Buffer/texture copies, query resolution, timestamps, and debug markers are exposed. |
 | `GPUCompilationInfo` | `ShaderModule#get_compilation_info` + `CompilationMessage` | ◐ | Typed diagnostics are ready, but pinned wgpu-native v27 exports only a panic stub; calls fail safely in Ruby. |
-| `GPUCompilationMessage` | `Hash` entries | ◐ | Message, type, line, column, offset, and length are returned. |
+| `GPUCompilationMessage` | `WGPU::CompilationMessage` | ✅ | Message, type, line, column, offset, and length are typed fields. |
 | `GPUComputePassEncoder` | `WGPU::ComputePass` | ✅ | |
 | `GPUComputePipeline` | `WGPU::ComputePipeline` | ✅ | Auto layout and override constants are accepted. |
 | `GPUDevice` | `WGPU::Device` | ◐ | Resource creation, error scopes, polling, features, and limits are exposed; device-lost and uncaptured-error subscriptions are not. |
@@ -123,6 +123,9 @@ native interoperation.
 | `10_textured_quad.rb` | Texture sampling | texture upload/view, sampler, texture bind group, draw |
 | `11_rotating_cube.rb` | Depth-tested 3D rendering | vertex/index/uniform/depth resources, pipeline, per-frame uniform write, draw |
 | `12_headless_render.rb` | Offscreen triangle and readback | render-to-texture, block render pass, aligned texture readback, pixel assertions |
+| `13_error_handling.rb` | Typed and labeled validation error | `BufferError`, operation/label context |
+| `14_async_map.rb` | Async map and callback retention | `map_async`, `AsyncTask`, typed mapped reads, GC stress |
+| `15_timestamp_query.rb` | Feature-gated GPU timestamps | timestamp pass writes, query resolution, u64 readback |
 
 When a public API changes, the corresponding example is part of the acceptance
 test surface. Compute and headless examples are automated in GPU CI; SDL
