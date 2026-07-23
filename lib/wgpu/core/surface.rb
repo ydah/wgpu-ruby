@@ -153,6 +153,11 @@ module WGPU
       Texture.from_handle(texture_ptr, surface_status: status)
     end
 
+    # Acquires the texture for the current presentation frame.
+    #
+    # @return [Texture] acquired surface texture
+    # @raise [SurfaceError] if the surface is not configured
+    # @raise [SurfaceAcquisitionError] if acquisition fails
     def get_current_texture
       current_texture
     end
@@ -161,10 +166,17 @@ module WGPU
       Native.wgpuSurfacePresent(@handle)
     end
 
+    # Returns the most recent surface configuration.
+    #
+    # @return [Hash, nil] configuration options, or +nil+ when unconfigured
     def get_configuration
       @config
     end
 
+    # Returns the first surface format supported by an adapter.
+    #
+    # @param adapter [Adapter] adapter used to query surface capabilities
+    # @return [Symbol] preferred texture format
     def get_preferred_format(adapter)
       caps = capabilities(adapter)
       caps[:formats].first || :bgra8_unorm
@@ -205,6 +217,10 @@ module WGPU
       Native.wgpuSurfaceCapabilitiesFreeMembers(caps) if caps
     end
 
+    # Releases the native surface handle.
+    #
+    # Calling this method more than once has no effect.
+    # @return [void]
     def release
       return if @handle.null?
       Native.wgpuSurfaceRelease(@handle)

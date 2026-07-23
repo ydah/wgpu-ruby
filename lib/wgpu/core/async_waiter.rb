@@ -21,6 +21,10 @@ module WGPU
       @poll_interval = value
     end
 
+    # Selects the native callback delivery mode for an operation.
+    #
+    # @param instance [Instance, nil] instance capable of processing events
+    # @return [Integer] native {Native::CallbackMode} value
     def callback_mode(instance:)
       if instance
         callback_mode_value(:allow_process_events)

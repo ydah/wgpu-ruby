@@ -24,6 +24,12 @@ module WGPU
       ((row_bytes + alignment - 1) / alignment) * alignment
     end
 
+    # Returns the copy footprint of one texel block.
+    #
+    # @param format [Symbol, Integer] texture format
+    # @param aspect [Symbol] texture aspect for depth/stencil formats
+    # @return [Array(Integer, Integer, Integer)] block width, height, and byte size
+    # @raise [ArgumentError] if the format has no portable copy footprint
     def block_info(format, aspect: :all)
       name = normalize_format(format)
       special = depth_stencil_block_info(name, aspect)

@@ -17,6 +17,6 @@
 - [Upgrading wgpu-native](upgrading_wgpu_native.md)
 - [Releasing](releasing.md)
 
-Generated API documentation is built with `bundle exec yard doc`. Static API
-signatures live in `sig/wgpu.rbs` and validate with
+The published [API reference](https://www.rubydoc.info/gems/wgpu) is generated
+with `bundle exec yard doc`. Static API signatures live in `sig/wgpu.rbs` and validate with
 `bundle exec rbs -I sig validate`.

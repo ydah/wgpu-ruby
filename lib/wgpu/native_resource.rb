@@ -13,6 +13,10 @@ module WGPU
 
     module_function
 
+    # Registers a live native resource when leak debugging is enabled.
+    #
+    # @param resource [NativeResource] resource to track
+    # @return [void]
     def register(resource)
       return unless WGPU.debug_leaks
 
@@ -22,10 +26,17 @@ module WGPU
       ObjectSpace.define_finalizer(resource, finalizer(object_id))
     end
 
+    # Removes a resource from leak tracking.
+    #
+    # @param resource [NativeResource] resource that was released
+    # @return [void]
     def unregister(resource)
       @mutex.synchronize { @resources.delete(resource.object_id) }
     end
 
+    # Warns about and clears every tracked resource.
+    #
+    # @return [void]
     def warn_remaining
       resources = @mutex.synchronize do
         remaining = @resources.values
@@ -58,6 +69,11 @@ module WGPU
 
     module_function
 
+    # Retains an FFI callback for as long as an operation needs it.
+    #
+    # @param owner [Object] object that owns the callback registry
+    # @param callback [FFI::Function] callback to retain
+    # @return [Object] opaque token used by {.release}
     def retain(owner, callback)
       mutex, callbacks = storage_for(owner)
       token = Object.new
@@ -65,6 +81,11 @@ module WGPU
       token
     end
 
+    # Releases a retained callback token.
+    #
+    # @param owner [Object] object that owns the callback registry
+    # @param token [Object, nil] token returned by {.retain}
+    # @return [void]
     def release(owner, token)
       return unless token
 
@@ -72,6 +93,10 @@ module WGPU
       mutex.synchronize { callbacks.delete(token) }
     end
 
+    # Returns the number of callbacks retained for an owner.
+    #
+    # @param owner [Object] object that owns the callback registry
+    # @return [Integer] retained callback count
     def count(owner)
       mutex, callbacks = storage_for(owner)
       mutex.synchronize { callbacks.length }
@@ -109,11 +134,20 @@ module WGPU
       UNSET = Object.new.freeze
       private_constant :UNSET
 
+      # Initializes a wrapper and registers its native-resource lifecycle.
+      #
+      # @param args [Array] positional arguments forwarded to the resource
+      # @param kwargs [Hash] keyword arguments forwarded to the resource
+      # @yield block forwarded to the resource initializer
+      # @return [NativeResource] initialized resource
       def initialize(*args, **kwargs, &block)
         super
         initialize_native_resource(label: kwargs.fetch(:label, UNSET))
       end
 
+      # Releases a resource once and unregisters it from leak tracking.
+      #
+      # @return [void]
       def release(...)
         return if released?
 
@@ -175,6 +209,9 @@ module WGPU
       release if block_given? && !released?
     end
 
+    # Returns a concise lifecycle-oriented representation.
+    #
+    # @return [String] class, optional label, and release state
     def inspect
       label_text = @label ? " label=#{@label.inspect}" : ""
       "#<#{self.class}#{label_text} released=#{released?}>"

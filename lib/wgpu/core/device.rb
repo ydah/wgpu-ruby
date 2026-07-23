@@ -6,6 +6,16 @@ module WGPU
 
     LIMIT_FIELDS = Native::Limits.members.freeze
 
+    # Requests a logical device and waits for the native callback.
+    #
+    # @param adapter [Adapter] adapter that will create the device
+    # @param label [String, nil] optional debugging label
+    # @param required_features [Array<Symbol, Integer>] features the device must enable
+    # @param required_limits [Hash, nil] minimum required limits
+    # @param timeout [Numeric, nil] maximum wait time in seconds
+    # @return [Device] requested device
+    # @raise [DeviceError] if device creation fails
+    # @raise [TimeoutError] if the request exceeds +timeout+
     def self.request(adapter, label: nil, required_features: [], required_limits: nil, timeout: nil)
       device_ptr = FFI::MemoryPointer.new(:pointer)
       status_holder = { done: false, value: nil, message: nil }
@@ -325,6 +335,10 @@ module WGPU
       error_holder
     end
 
+    # Pops the latest error scope on a background thread.
+    #
+    # @param timeout [Numeric, nil] maximum wait time in seconds
+    # @return [AsyncTask] task whose value is the error hash
     def pop_error_scope_async(timeout: nil)
       AsyncTask.new { pop_error_scope(timeout: timeout) }
     end
@@ -360,6 +374,10 @@ module WGPU
       Native.wgpuDeviceDestroy(@handle)
     end
 
+    # Releases the default queue, device callbacks, and native device handle.
+    #
+    # Calling this method more than once has no effect.
+    # @return [void]
     def release
       @queue&.release
       return if @handle.null?

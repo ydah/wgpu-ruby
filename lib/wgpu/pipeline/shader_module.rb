@@ -108,6 +108,10 @@ module WGPU
       AsyncTask.new { get_compilation_info }
     end
 
+    # Releases the native shader module handle.
+    #
+    # Calling this method more than once has no effect.
+    # @return [void]
     def release
       return if @handle.null?
       Native.wgpuShaderModuleRelease(@handle)

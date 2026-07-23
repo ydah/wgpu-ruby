@@ -38,6 +38,10 @@ module WGPU
       end
     end
 
+    # Releases the native bind group handle.
+    #
+    # Calling this method more than once has no effect.
+    # @return [void]
     def release
       return if @handle.null?
       Native.wgpuBindGroupRelease(@handle)

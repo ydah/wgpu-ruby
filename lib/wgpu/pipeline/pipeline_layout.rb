@@ -34,6 +34,10 @@ module WGPU
       end
     end
 
+    # Releases the native pipeline layout handle.
+    #
+    # Calling this method more than once has no effect.
+    # @return [void]
     def release
       return if @handle.null?
       Native.wgpuPipelineLayoutRelease(@handle)

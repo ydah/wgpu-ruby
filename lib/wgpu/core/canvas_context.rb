@@ -18,11 +18,18 @@ module WGPU
       @physical_size = [width.to_i, height.to_i]
     end
 
+    # Returns the surface format preferred by an adapter.
+    #
+    # @param adapter [Adapter] adapter used to query surface capabilities
+    # @return [Symbol] preferred texture format
     def get_preferred_format(adapter)
       ensure_surface
       @surface.get_preferred_format(adapter)
     end
 
+    # Returns the most recent canvas configuration.
+    #
+    # @return [Hash, nil] configuration options, or +nil+ when unconfigured
     def get_configuration
       @config
     end
@@ -64,6 +71,11 @@ module WGPU
       @config = nil
     end
 
+    # Acquires the texture for the current presentation frame.
+    #
+    # @return [Texture] acquired surface texture
+    # @raise [SurfaceError] if the context has not been configured
+    # @raise [SurfaceAcquisitionError] if acquisition fails
     def get_current_texture
       raise SurfaceError, "Canvas context must be configured before get_current_texture" unless @config
 
@@ -74,6 +86,9 @@ module WGPU
       @surface&.present
     end
 
+    # Releases the backing surface and clears the configuration.
+    #
+    # @return [void]
     def release
       @surface&.release
       @surface = nil

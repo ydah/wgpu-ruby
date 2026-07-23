@@ -6,6 +6,12 @@ module WGPU
 
     module_function
 
+    # Writes an optional Ruby label into a native descriptor.
+    #
+    # @param descriptor [FFI::Struct] descriptor with a +label+ member
+    # @param label [String, nil] label text
+    # @param keepalive [Array] receives allocated pointers that must remain alive
+    # @return [void]
     def set_label(descriptor, label, keepalive:)
       if label
         pointer = FFI::MemoryPointer.from_string(label)
@@ -18,6 +24,11 @@ module WGPU
       end
     end
 
+    # Allocates and fills a native uint32 array.
+    #
+    # @param values [Array<Integer>] values to copy
+    # @param keepalive [Array] receives the allocated pointer
+    # @return [FFI::MemoryPointer, nil] pointer, or +nil+ for an empty array
     def uint32_array(values, keepalive:)
       return nil if values.empty?
 
@@ -27,6 +38,12 @@ module WGPU
       pointer
     end
 
+    # Writes a nullable string into a native string view.
+    #
+    # @param string_view [Native::StringView] destination view
+    # @param value [String, nil] string value; +nil+ uses the native null sentinel
+    # @param keepalive [Array] receives allocated pointers that must remain alive
+    # @return [void]
     def set_nullable_string_view(string_view, value, keepalive:)
       if value.nil?
         string_view[:data] = nil
@@ -41,6 +58,12 @@ module WGPU
       string_view[:length] = string.bytesize
     end
 
+    # Writes pipeline-overridable constants into a stage descriptor.
+    #
+    # @param stage_descriptor [FFI::Struct] programmable stage descriptor
+    # @param constants [Hash{#to_s => Numeric}, nil] constant names and values
+    # @param keepalive [Array] receives allocated pointers that must remain alive
+    # @return [void]
     def set_constants(stage_descriptor, constants, keepalive:)
       stage_descriptor[:constant_count] = 0
       stage_descriptor[:constants] = nil

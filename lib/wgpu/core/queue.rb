@@ -215,6 +215,10 @@ module WGPU
       end
     end
 
+    # Releases the native queue handle.
+    #
+    # Calling this method more than once has no effect.
+    # @return [void]
     def release
       return if @handle.null?
       Native.wgpuQueueRelease(@handle)

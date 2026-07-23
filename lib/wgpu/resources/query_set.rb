@@ -35,6 +35,11 @@ module WGPU
       @destroyed = true
     end
 
+    # Releases the native query set handle.
+    #
+    # A query set destroyed through {#destroy} is only marked released because
+    # the pinned native implementation cannot safely release it afterward.
+    # @return [void]
     def release
       return if @handle.null?
 

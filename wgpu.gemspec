@@ -17,6 +17,7 @@ Gem::Specification.new do |spec|
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = "https://github.com/ydah/wgpu-ruby/tree/main"
   spec.metadata["changelog_uri"] = "https://github.com/ydah/wgpu-ruby/blob/main/CHANGELOG.md"
+  spec.metadata["documentation_uri"] = "https://www.rubydoc.info/gems/wgpu"
 
   spec.files = Dir[
     "lib/**/*",

@@ -145,6 +145,10 @@ module WGPU
       RenderBundle.new(bundle_handle)
     end
 
+    # Releases the native render bundle encoder handle.
+    #
+    # Calling this method more than once has no effect.
+    # @return [void]
     def release
       return if @handle.null?
 

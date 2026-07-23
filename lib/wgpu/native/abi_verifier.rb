@@ -36,6 +36,9 @@ module WGPU
         raise WGPU::Error, "wgpu-native ABI differences:\n#{differences.join("\n")}"
       end
 
+      # Compares Ruby enum values with the pinned native header.
+      #
+      # @return [Array<String>] human-readable differences
       def enum_differences
         header_enums = parse_header
         ruby_enums.filter_map do |name, mapping|
@@ -67,6 +70,9 @@ module WGPU
         MSG
       end
 
+      # Returns the repository's pinned enum fixture path.
+      #
+      # @return [String] absolute header fixture path
       def self.fixture_header_path
         File.expand_path("fixtures/webgpu-#{Distribution::VERSION}-enums.h", __dir__)
       end

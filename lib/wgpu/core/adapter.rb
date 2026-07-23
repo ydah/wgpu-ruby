@@ -10,6 +10,18 @@ module WGPU
       adapter
     end
 
+    # Requests an adapter and waits for the native callback.
+    #
+    # @param instance [Instance] instance used for discovery and callback progress
+    # @param power_preference [Symbol, Integer] preferred power profile
+    # @param backend [Symbol, Integer, nil] backend to restrict discovery to
+    # @param feature_level [Symbol, Integer] requested WebGPU feature level
+    # @param force_fallback_adapter [Boolean] whether to require a fallback adapter
+    # @param compatible_surface [Surface, nil] surface the adapter must support
+    # @param timeout [Numeric, nil] maximum wait time in seconds
+    # @return [Adapter] requested adapter
+    # @raise [AdapterError] if no adapter can be acquired
+    # @raise [TimeoutError] if the request exceeds +timeout+
     def self.request(instance, power_preference: :high_performance, backend: nil, feature_level: :core,
                      force_fallback_adapter: false, compatible_surface: nil, timeout: nil)
       adapter_ptr = FFI::MemoryPointer.new(:pointer)
@@ -161,6 +173,10 @@ module WGPU
       "#{info_hash[:device]} (#{info_hash[:adapter_type]}) via #{info_hash[:backend_type]}"
     end
 
+    # Releases the native adapter handle.
+    #
+    # Calling this method more than once has no effect.
+    # @return [void]
     def release
       return if @handle.null?
       Native.wgpuAdapterRelease(@handle)

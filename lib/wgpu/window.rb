@@ -35,6 +35,11 @@ module WGPU
         @window = SDL3::Window.new(title, width, height, flags)
       end
 
+      # Creates a presentation surface for this native window.
+      #
+      # @param instance [Instance] WebGPU instance that owns the surface
+      # @return [Surface] platform-specific presentation surface
+      # @raise [WindowError] if the platform or native window handle is unsupported
       def create_surface(instance)
         case platform
         when :macos
@@ -50,6 +55,9 @@ module WGPU
         end
       end
 
+      # Collects currently pending SDL events.
+      #
+      # @return [Array] events in delivery order
       def poll_events
         events = []
         SDL3::Event.each do |event|
@@ -78,12 +86,18 @@ module WGPU
         end
       end
 
+      # Returns the drawable size in physical pixels.
+      #
+      # @return [Array(Integer, Integer)] width and height
       def drawable_size
         @window.size_in_pixels
       rescue
         [@width, @height]
       end
 
+      # Destroys platform-specific resources and the SDL window.
+      #
+      # @return [void]
       def close
         if @metal_view && !@metal_view.null?
           SDL3::Raw.SDL_Metal_DestroyView(@metal_view)

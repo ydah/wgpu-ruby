@@ -4,6 +4,10 @@ module WGPU
   class BindGroupLayout
     attr_reader :handle
 
+    # Wraps a native bind group layout handle owned by the caller.
+    #
+    # @param handle [FFI::Pointer] native bind group layout handle
+    # @return [BindGroupLayout] adopted wrapper
     def self.from_handle(handle)
       layout = adopt_native_handle(handle)
       layout.instance_variable_set(:@device, nil)
@@ -25,6 +29,10 @@ module WGPU
       end
     end
 
+    # Releases the native bind group layout handle.
+    #
+    # Calling this method more than once has no effect.
+    # @return [void]
     def release
       return if @handle.null?
       Native.wgpuBindGroupLayoutRelease(@handle)

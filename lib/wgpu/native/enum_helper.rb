@@ -16,6 +16,13 @@ module WGPU
         raise ArgumentError, unknown_value_message(name, value, mapping.keys)
       end
 
+      # Converts symbolic flag names to their combined integer bitset.
+      #
+      # @param enum [FFI::Enum, Hash] flag mapping
+      # @param value [Symbol, Integer, Array<Symbol>] flags to convert
+      # @param name [String] name used in validation errors
+      # @return [Integer] combined bitset
+      # @raise [ArgumentError] if a flag is unknown or has an invalid type
       def coerce_flags(enum, value, name: "flags")
         return value if value.is_a?(Integer)
 

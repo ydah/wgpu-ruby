@@ -63,6 +63,12 @@ module WGPU
         raise LoadError, unsupported_platform_message(platform)
       end
 
+      # Returns the preferred versioned native-library cache directory.
+      #
+      # @param env [Hash] environment used for cache overrides
+      # @param home [String] user home directory
+      # @param host_os [String] host operating-system identifier
+      # @return [String] absolute cache directory
       def primary_cache_dir(env: ENV, home: Dir.home, host_os: RbConfig::CONFIG["host_os"])
         override = present_value(env["WGPU_CACHE_DIR"])
         return File.join(File.expand_path(override), VERSION) if override
@@ -73,24 +79,50 @@ module WGPU
         File.join(default_cache_base(env:, home:, host_os:), "wgpu-ruby", VERSION)
       end
 
+      # Returns the legacy versioned cache directory.
+      #
+      # @param home [String] user home directory
+      # @return [String] absolute legacy cache directory
       def legacy_cache_dir(home: Dir.home)
         File.join(File.expand_path(home), ".cache", "wgpu-ruby", VERSION)
       end
 
+      # Returns cache directories in lookup order.
+      #
+      # @param env [Hash] environment used for cache overrides
+      # @param home [String] user home directory
+      # @param host_os [String] host operating-system identifier
+      # @return [Array<String>] unique cache directories
       def cache_directories(env: ENV, home: Dir.home, host_os: RbConfig::CONFIG["host_os"])
         [primary_cache_dir(env:, home:, host_os:), legacy_cache_dir(home:)].uniq
       end
 
+      # Returns candidate cached library paths for a platform.
+      #
+      # @param platform [String] Ruby platform identifier
+      # @param env [Hash] environment used for cache overrides
+      # @param home [String] user home directory
+      # @param host_os [String] host operating-system identifier
+      # @return [Array<String>] candidate shared-library paths
+      # @raise [LoadError] if the platform is unsupported
       def library_paths(platform: RUBY_PLATFORM, env: ENV, home: Dir.home,
                         host_os: RbConfig::CONFIG["host_os"])
         library = artifact_for(platform)[:library]
         cache_directories(env:, home:, host_os:).map { |directory| File.join(directory, "lib", library) }
       end
 
+      # Builds the download URL for an artifact entry.
+      #
+      # @param artifact [Hash] entry from {ARTIFACTS}
+      # @return [String] release archive URL
       def release_url(artifact)
         "#{RELEASE_BASE_URL}/#{artifact.fetch(:archive)}"
       end
 
+      # Decodes the packed native version into a release tag.
+      #
+      # @param encoded_version [Integer] four-byte packed version
+      # @return [String] version in +vMAJOR.MINOR.PATCH.BUILD+ form
       def version_string(encoded_version)
         components = [24, 16, 8, 0].map { |shift| (encoded_version >> shift) & 0xFF }
         "v#{components.join(".")}"
@@ -100,6 +132,10 @@ module WGPU
         !UNIMPLEMENTED_CAPABILITIES.fetch(name, []).include?(VERSION)
       end
 
+      # Builds an actionable unsupported-platform message.
+      #
+      # @param platform [String] Ruby platform identifier
+      # @return [String] diagnostic message
       def unsupported_platform_message(platform)
         supported = ARTIFACTS.map { |artifact| artifact[:pattern].inspect }.join(", ")
         <<~MESSAGE.chomp

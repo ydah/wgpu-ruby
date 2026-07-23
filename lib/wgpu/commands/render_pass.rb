@@ -74,14 +74,37 @@ module WGPU
       Native.wgpuRenderPassEncoderDrawIndexed(@handle, index_count, instance_count, first_index, base_vertex, first_instance)
     end
 
+    # Sets the viewport used by subsequent draw calls.
+    #
+    # @param x [Numeric] left coordinate in pixels
+    # @param y [Numeric] top coordinate in pixels
+    # @param width [Numeric] viewport width in pixels
+    # @param height [Numeric] viewport height in pixels
+    # @param min_depth [Numeric] minimum depth value
+    # @param max_depth [Numeric] maximum depth value
+    # @return [void]
     def set_viewport(x, y, width, height, min_depth: 0.0, max_depth: 1.0)
       Native.wgpuRenderPassEncoderSetViewport(@handle, x, y, width, height, min_depth, max_depth)
     end
 
+    # Restricts rasterization to a rectangular region.
+    #
+    # @param x [Integer] left coordinate in pixels
+    # @param y [Integer] top coordinate in pixels
+    # @param width [Integer] rectangle width in pixels
+    # @param height [Integer] rectangle height in pixels
+    # @return [void]
     def set_scissor_rect(x, y, width, height)
       Native.wgpuRenderPassEncoderSetScissorRect(@handle, x, y, width, height)
     end
 
+    # Sets the constant color used by blend factors.
+    #
+    # @param r [Numeric] red component
+    # @param g [Numeric] green component
+    # @param b [Numeric] blue component
+    # @param a [Numeric] alpha component
+    # @return [void]
     def set_blend_constant(r: 0.0, g: 0.0, b: 0.0, a: 1.0)
       color = Native::Color.new
       color[:r] = r
@@ -91,18 +114,36 @@ module WGPU
       Native.wgpuRenderPassEncoderSetBlendConstant(@handle, color.to_ptr)
     end
 
+    # Sets the stencil reference used by subsequent draw calls.
+    #
+    # @param reference [Integer] unsigned stencil reference
+    # @return [void]
     def set_stencil_reference(reference)
       Native.wgpuRenderPassEncoderSetStencilReference(@handle, reference)
     end
 
+    # Draws using non-indexed arguments stored in a buffer.
+    #
+    # @param buffer [Buffer] buffer containing the indirect arguments
+    # @param offset [Integer] byte offset of the arguments
+    # @return [void]
     def draw_indirect(buffer, offset: 0)
       Native.wgpuRenderPassEncoderDrawIndirect(@handle, buffer.handle, offset)
     end
 
+    # Draws using indexed arguments stored in a buffer.
+    #
+    # @param buffer [Buffer] buffer containing the indirect arguments
+    # @param offset [Integer] byte offset of the arguments
+    # @return [void]
     def draw_indexed_indirect(buffer, offset: 0)
       Native.wgpuRenderPassEncoderDrawIndexedIndirect(@handle, buffer.handle, offset)
     end
 
+    # Executes pre-recorded render bundles.
+    #
+    # @param bundles [Array<RenderBundle>] bundles to execute in order
+    # @return [void]
     def execute_bundles(bundles)
       bundle_handles = bundles.map(&:handle)
       bundles_ptr = FFI::MemoryPointer.new(:pointer, bundle_handles.size)
@@ -110,14 +151,25 @@ module WGPU
       Native.wgpuRenderPassEncoderExecuteBundles(@handle, bundle_handles.size, bundles_ptr)
     end
 
+    # Begins an occlusion query for subsequent draw calls.
+    #
+    # @param query_index [Integer] destination index in the pass query set
+    # @return [void]
     def begin_occlusion_query(query_index)
       Native.wgpuRenderPassEncoderBeginOcclusionQuery(@handle, query_index)
     end
 
+    # Ends the active occlusion query.
+    #
+    # @return [void]
     def end_occlusion_query
       Native.wgpuRenderPassEncoderEndOcclusionQuery(@handle)
     end
 
+    # Starts a labeled group in GPU debugging tools.
+    #
+    # @param label [String] group label
+    # @return [void]
     def push_debug_group(label)
       label_view = Native::StringView.new
       label_ptr = FFI::MemoryPointer.from_string(label)
@@ -126,10 +178,17 @@ module WGPU
       Native.wgpuRenderPassEncoderPushDebugGroup(@handle, label_view)
     end
 
+    # Ends the most recently pushed debug group.
+    #
+    # @return [void]
     def pop_debug_group
       Native.wgpuRenderPassEncoderPopDebugGroup(@handle)
     end
 
+    # Inserts a labeled point in GPU debugging tools.
+    #
+    # @param label [String] marker label
+    # @return [void]
     def insert_debug_marker(label)
       label_view = Native::StringView.new
       label_ptr = FFI::MemoryPointer.from_string(label)
@@ -154,6 +213,10 @@ module WGPU
       @ended
     end
 
+    # Releases the native render pass encoder handle.
+    #
+    # Calling this method more than once has no effect.
+    # @return [void]
     def release
       return if @handle.null?
       Native.wgpuRenderPassEncoderRelease(@handle)

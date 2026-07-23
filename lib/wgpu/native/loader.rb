@@ -6,6 +6,12 @@ require_relative "distribution"
 module WGPU
   module Native
     module OptionalFunctions
+      # Attaches a native function without failing library initialization.
+      #
+      # @param name [Symbol] exported function name
+      # @param arguments [Array] FFI argument types
+      # @param result [Symbol, FFI::Type] FFI return type
+      # @return [void]
       def attach_optional_function(name, arguments, result)
         attach_function(name, arguments, result)
         optional_functions[name] = true
@@ -22,6 +28,9 @@ module WGPU
         optional_functions.fetch(name, false)
       end
 
+      # Returns availability information for optional native functions.
+      #
+      # @return [Hash{Symbol => Boolean}] immutable capability snapshot
       def optional_capabilities
         optional_functions.dup.freeze
       end
@@ -60,10 +69,17 @@ module WGPU
         MSG
       end
 
+      # Returns the preferred native-library cache directory.
+      #
+      # @return [String] absolute cache directory
       def cache_dir
         Distribution.primary_cache_dir
       end
 
+      # Returns the shared-library filename for this platform.
+      #
+      # @return [String] platform-specific filename
+      # @raise [LoadError] if the platform is unsupported
       def library_name
         Distribution.artifact_for.fetch(:library)
       end

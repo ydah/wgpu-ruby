@@ -30,6 +30,11 @@ module WGPU
       end
     end
 
+    # Wraps a native texture handle, such as a surface-acquired texture.
+    #
+    # @param handle [FFI::Pointer] native texture handle
+    # @param surface_status [Symbol, nil] acquisition status associated with the texture
+    # @return [Texture] adopted wrapper
     def self.from_handle(handle, surface_status: nil)
       texture = adopt_native_handle(handle)
       texture.instance_variable_set(:@device, nil)
@@ -95,6 +100,10 @@ module WGPU
       Native.wgpuTextureDestroy(@handle)
     end
 
+    # Releases the native texture handle.
+    #
+    # Calling this method more than once has no effect.
+    # @return [void]
     def release
       return if @handle.null?
       Native.wgpuTextureRelease(@handle)

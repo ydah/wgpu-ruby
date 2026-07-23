@@ -54,6 +54,10 @@ module WGPU
       Native.wgpuComputePassEncoderDispatchWorkgroupsIndirect(@handle, buffer.handle, offset)
     end
 
+    # Starts a labeled group in GPU debugging tools.
+    #
+    # @param label [String] group label
+    # @return [void]
     def push_debug_group(label)
       label_view = Native::StringView.new
       label_ptr = FFI::MemoryPointer.from_string(label)
@@ -62,10 +66,17 @@ module WGPU
       Native.wgpuComputePassEncoderPushDebugGroup(@handle, label_view)
     end
 
+    # Ends the most recently pushed debug group.
+    #
+    # @return [void]
     def pop_debug_group
       Native.wgpuComputePassEncoderPopDebugGroup(@handle)
     end
 
+    # Inserts a labeled point in GPU debugging tools.
+    #
+    # @param label [String] marker label
+    # @return [void]
     def insert_debug_marker(label)
       label_view = Native::StringView.new
       label_ptr = FFI::MemoryPointer.from_string(label)
@@ -90,6 +101,10 @@ module WGPU
       @ended
     end
 
+    # Releases the native compute pass encoder handle.
+    #
+    # Calling this method more than once has no effect.
+    # @return [void]
     def release
       return if @handle.null?
       Native.wgpuComputePassEncoderRelease(@handle)

@@ -19,6 +19,10 @@ module WGPU
       @submitted = true
     end
 
+    # Releases the native command buffer handle.
+    #
+    # Calling this method more than once has no effect.
+    # @return [void]
     def release
       return if @handle.null?
       Native.wgpuCommandBufferRelease(@handle)
