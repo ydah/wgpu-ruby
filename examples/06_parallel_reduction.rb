@@ -72,7 +72,7 @@ pipeline = device.create_compute_pipeline(
 stride = 1
 iterations = 0
 while stride < n
-  queue.write_buffer(stride_buffer, 0, [stride].pack("L<"))
+  queue.write_buffer(stride_buffer, 0, [stride], type: :u32)
 
   encoder = device.create_command_encoder
   pass = encoder.begin_compute_pass

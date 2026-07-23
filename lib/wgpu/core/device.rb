@@ -190,8 +190,9 @@ module WGPU
       )
     end
 
-    def create_buffer_with_data(label: nil, data:, usage:)
-      data_ptr, byte_size = data_to_pointer(data)
+    def create_buffer_with_data(label: nil, data:, usage:, type: :f32)
+      data_ptr, byte_size = DataTypes.to_pointer(data, type:)
+      DataTypes.validate_alignment!(byte_size, 4, name: "buffer data size")
       buffer = create_buffer(
         label: label,
         size: byte_size,
@@ -362,23 +363,6 @@ module WGPU
       :build_required_limits, :canonical_limit_key
 
     private
-
-    def data_to_pointer(data)
-      case data
-      when String
-        ptr = FFI::MemoryPointer.new(:char, data.bytesize)
-        ptr.put_bytes(0, data)
-        [ptr, data.bytesize]
-      when Array
-        ptr = FFI::MemoryPointer.new(:float, data.size)
-        ptr.write_array_of_float(data)
-        [ptr, data.size * 4]
-      when FFI::Pointer
-        [data, data.size]
-      else
-        raise ArgumentError, "Unsupported data type: #{data.class}"
-      end
-    end
 
     def limits_to_hash(limits)
       {

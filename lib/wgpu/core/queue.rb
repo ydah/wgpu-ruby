@@ -20,8 +20,9 @@ module WGPU
       Native.wgpuQueueSubmit(@handle, handles.size, ptr)
     end
 
-    def write_buffer(buffer, buffer_offset, data, data_offset: 0, size: nil)
-      data_ptr, byte_size = data_to_pointer(data)
+    def write_buffer(buffer, buffer_offset, data, data_offset: 0, size: nil, type: :f32)
+      data_ptr, byte_size = DataTypes.to_pointer(data, type:)
+      DataTypes.validate_alignment!(buffer_offset, 4, name: "buffer_offset")
       data_offset = Integer(data_offset)
       raise ArgumentError, "data_offset must be non-negative" if data_offset.negative?
       raise ArgumentError, "data_offset out of range" if data_offset > byte_size
@@ -29,6 +30,7 @@ module WGPU
       write_size = size.nil? ? (byte_size - data_offset) : Integer(size)
       raise ArgumentError, "size must be non-negative" if write_size.negative?
       raise ArgumentError, "data_offset + size out of range" if data_offset + write_size > byte_size
+      DataTypes.validate_alignment!(write_size, 4, name: "size")
 
       Native.wgpuQueueWriteBuffer(
         @handle,
@@ -39,8 +41,8 @@ module WGPU
       )
     end
 
-    def write_texture(destination:, data:, data_layout:, size:)
-      data_ptr, byte_size = data_to_pointer(data)
+    def write_texture(destination:, data:, data_layout:, size:, type: :f32)
+      data_ptr, byte_size = DataTypes.to_pointer(data, type:)
 
       dst = Native::ImageCopyTexture.new
       dst[:texture] = destination[:texture].handle
@@ -176,23 +178,5 @@ module WGPU
       @handle = FFI::Pointer::NULL
     end
 
-    private
-
-    def data_to_pointer(data)
-      case data
-      when String
-        ptr = FFI::MemoryPointer.new(:char, data.bytesize)
-        ptr.put_bytes(0, data)
-        [ptr, data.bytesize]
-      when Array
-        ptr = FFI::MemoryPointer.new(:float, data.size)
-        ptr.write_array_of_float(data)
-        [ptr, data.size * 4]
-      when FFI::Pointer
-        [data, data.size]
-      else
-        raise ArgumentError, "Unsupported data type: #{data.class}"
-      end
-    end
   end
 end

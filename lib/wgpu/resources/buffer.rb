@@ -29,8 +29,10 @@ module WGPU
       end
     end
 
-    def write(data, offset: 0)
-      ptr, byte_size = data_to_pointer(data)
+    def write(data, offset: 0, type: :f32)
+      ptr, byte_size = DataTypes.to_pointer(data, type:)
+      DataTypes.validate_alignment!(offset, 4, name: "offset")
+      DataTypes.validate_alignment!(byte_size, 4, name: "data size")
       Native.wgpuQueueWriteBuffer(@device.queue.handle, @handle, offset, ptr, byte_size)
     end
 
@@ -38,6 +40,7 @@ module WGPU
       raise BufferError, "Buffer is not mapped" unless @mapped
 
       size ||= @size - offset
+      validate_map_range!(offset, size)
       ptr = Native.wgpuBufferGetMappedRange(@handle, offset, size)
       raise BufferError, "Failed to get mapped range" if ptr.null?
 
@@ -75,20 +78,23 @@ module WGPU
       raise BufferError, "Buffer is not mapped" unless @mapped
 
       size ||= @size - offset
+      validate_map_range!(offset, size)
       ptr = Native.wgpuBufferGetConstMappedRange(@handle, offset, size)
       raise BufferError, "Failed to get mapped range" if ptr.null?
 
       ptr.read_bytes(size)
     end
 
-    def read_mapped(offset: 0, size: nil)
-      read_mapped_data(offset: offset, size: size)
+    def read_mapped(offset: 0, size: nil, type: nil)
+      bytes = read_mapped_data(offset: offset, size: size)
+      type ? DataTypes.unpack(bytes, type:) : bytes
     end
 
-    def write_mapped(data, offset: 0)
+    def write_mapped(data, offset: 0, type: :f32)
       raise BufferError, "Buffer is not mapped" unless @mapped
 
-      ptr, byte_size = data_to_pointer(data)
+      ptr, byte_size = DataTypes.to_pointer(data, type:)
+      validate_map_range!(offset, byte_size)
       target = Native.wgpuBufferGetMappedRange(@handle, offset, byte_size)
       raise BufferError, "Failed to get mapped range" if target.null?
 
@@ -96,13 +102,33 @@ module WGPU
     end
 
     def read_mapped_floats(offset: 0, count: nil)
-      raise BufferError, "Buffer is not mapped" unless @mapped
+      read_mapped_values(type: :f32, offset:, count:)
+    end
 
-      size = count ? count * 4 : @size - offset
-      ptr = Native.wgpuBufferGetConstMappedRange(@handle, offset, size)
-      raise BufferError, "Failed to get mapped range" if ptr.null?
+    def read_mapped_uint32s(offset: 0, count: nil)
+      read_mapped_values(type: :u32, offset:, count:)
+    end
 
-      ptr.read_array_of_float(size / 4)
+    def read_mapped_int32s(offset: 0, count: nil)
+      read_mapped_values(type: :i32, offset:, count:)
+    end
+
+    def read_mapped_float64s(offset: 0, count: nil)
+      read_mapped_values(type: :f64, offset:, count:)
+    end
+
+    def read_mapped_uint16s(offset: 0, count: nil)
+      read_mapped_values(type: :u16, offset:, count:)
+    end
+
+    def read_mapped_uint8s(offset: 0, count: nil)
+      read_mapped_values(type: :u8, offset:, count:)
+    end
+
+    def read_mapped_values(type: :f32, offset: 0, count: nil)
+      element_size = DataTypes.byte_size(type)
+      size = count ? count * element_size : @size - offset
+      DataTypes.unpack(read_mapped_data(offset:, size:), type:)
     end
 
     def map_state
@@ -135,6 +161,7 @@ module WGPU
 
     def begin_map_request(mode, offset:, size:)
       size ||= @size - offset
+      validate_map_range!(offset, size)
       mode_flag = Native::EnumHelper.coerce(Native::MapMode, mode, name: "map mode")
 
       status_holder = { done: false, status: nil, message: nil }
@@ -183,21 +210,9 @@ module WGPU
       Native::EnumHelper.coerce_flags(Native::BufferUsage, usage, name: "buffer usage")
     end
 
-    def data_to_pointer(data)
-      case data
-      when String
-        ptr = FFI::MemoryPointer.new(:char, data.bytesize)
-        ptr.put_bytes(0, data)
-        [ptr, data.bytesize]
-      when Array
-        ptr = FFI::MemoryPointer.new(:float, data.size)
-        ptr.write_array_of_float(data)
-        [ptr, data.size * 4]
-      when FFI::Pointer
-        [data, data.size]
-      else
-        raise ArgumentError, "Unsupported data type: #{data.class}"
-      end
+    def validate_map_range!(offset, size)
+      DataTypes.validate_alignment!(offset, 8, name: "map offset")
+      DataTypes.validate_alignment!(size, 4, name: "map size")
     end
   end
 
@@ -208,12 +223,64 @@ module WGPU
     end
 
     def read_floats(count = nil)
-      count ||= @size / 4
-      @pointer.read_array_of_float(count)
+      read(type: :f32, count:)
     end
 
     def write_floats(data)
-      @pointer.write_array_of_float(data)
+      write(data, type: :f32)
+    end
+
+    def read_uint32s(count = nil)
+      read(type: :u32, count:)
+    end
+
+    def write_uint32s(data)
+      write(data, type: :u32)
+    end
+
+    def read_int32s(count = nil)
+      read(type: :i32, count:)
+    end
+
+    def write_int32s(data)
+      write(data, type: :i32)
+    end
+
+    def read_float64s(count = nil)
+      read(type: :f64, count:)
+    end
+
+    def write_float64s(data)
+      write(data, type: :f64)
+    end
+
+    def read_uint16s(count = nil)
+      read(type: :u16, count:)
+    end
+
+    def write_uint16s(data)
+      write(data, type: :u16)
+    end
+
+    def read_uint8s(count = nil)
+      read(type: :u8, count:)
+    end
+
+    def write_uint8s(data)
+      write(data, type: :u8)
+    end
+
+    def read(type: :f32, count: nil)
+      byte_size = DataTypes.byte_size(type)
+      count ||= @size / byte_size
+      DataTypes.unpack(@pointer.read_bytes(count * byte_size), type:)
+    end
+
+    def write(data, type: :f32)
+      bytes = data.is_a?(String) ? data : DataTypes.pack(data, type:)
+      raise ArgumentError, "data exceeds mapped range" if bytes.bytesize > @size
+
+      @pointer.put_bytes(0, bytes)
     end
 
     def read_bytes
