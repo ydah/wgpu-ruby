@@ -22,6 +22,10 @@ module WGPU
         Distribution.capability_implemented?(:buffer_map_state)
       end
 
+      def pipeline_async_available?
+        Distribution.capability_implemented?(:pipeline_async)
+      end
+
       def logging_available?
         optional_function_available?(:wgpuSetLogCallback) &&
           optional_function_available?(:wgpuSetLogLevel)

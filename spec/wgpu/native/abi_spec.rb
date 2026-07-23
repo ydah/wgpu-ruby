@@ -1,10 +1,14 @@
 # frozen_string_literal: true
 
+require "tempfile"
+
 RSpec.describe WGPU::Native, :skip_gpu_check do
   describe "enum mappings" do
     it "matches v27 async status enums" do
       expect(WGPU::Native::RequestAdapterStatus[5]).to eq(:unknown)
       expect(WGPU::Native::RequestDeviceStatus[4]).to eq(:unknown)
+      expect(WGPU::Native::CreatePipelineAsyncStatus[3]).to eq(:validation_error)
+      expect(WGPU::Native::CreatePipelineAsyncStatus[5]).to eq(:unknown)
       expect(WGPU::Native::MapAsyncStatus[5]).to eq(:unknown)
       expect(WGPU::Native::PopErrorScopeStatus[2]).to eq(:instance_dropped)
       expect(WGPU::Native::PopErrorScopeStatus[3]).to eq(:empty_stack)
@@ -27,12 +31,16 @@ RSpec.describe WGPU::Native, :skip_gpu_check do
     it "uses userdata1/2 fields with expected sizes" do
       expect(WGPU::Native::RequestAdapterCallbackInfo.members).to include(:userdata1, :userdata2)
       expect(WGPU::Native::RequestDeviceCallbackInfo.members).to include(:userdata1, :userdata2)
+      expect(WGPU::Native::CreateComputePipelineAsyncCallbackInfo.members).to include(:userdata1, :userdata2)
+      expect(WGPU::Native::CreateRenderPipelineAsyncCallbackInfo.members).to include(:userdata1, :userdata2)
       expect(WGPU::Native::BufferMapCallbackInfo.members).to include(:userdata1, :userdata2)
       expect(WGPU::Native::DeviceLostCallbackInfo.members).to include(:userdata1, :userdata2)
       expect(WGPU::Native::UncapturedErrorCallbackInfo.members).to include(:userdata1, :userdata2)
 
       expect(WGPU::Native::RequestAdapterCallbackInfo.size).to eq(40)
       expect(WGPU::Native::RequestDeviceCallbackInfo.size).to eq(40)
+      expect(WGPU::Native::CreateComputePipelineAsyncCallbackInfo.size).to eq(40)
+      expect(WGPU::Native::CreateRenderPipelineAsyncCallbackInfo.size).to eq(40)
       expect(WGPU::Native::BufferMapCallbackInfo.size).to eq(40)
       expect(WGPU::Native::DeviceLostCallbackInfo.size).to eq(40)
       expect(WGPU::Native::UncapturedErrorCallbackInfo.size).to eq(32)
@@ -63,6 +71,11 @@ RSpec.describe WGPU::Native, :skip_gpu_check do
       expect(WGPU::Native::FutureWaitInfo.members).to eq([:future, :completed])
       expect(WGPU::Native::FutureWaitInfo.size).to eq(16)
     end
+
+    it "binds the v27 asynchronous pipeline creation functions" do
+      expect(WGPU::Native).to respond_to(:wgpuDeviceCreateComputePipelineAsync)
+      expect(WGPU::Native).to respond_to(:wgpuDeviceCreateRenderPipelineAsync)
+    end
   end
 
   describe "texture view descriptor layout" do
@@ -83,6 +96,7 @@ RSpec.describe WGPU::Native, :skip_gpu_check do
       expect(WGPU::Native.device_poll_available?).to eq(
         WGPU::Native.optional_function_available?(:wgpuDevicePoll)
       )
+      expect(WGPU::Native.pipeline_async_available?).to be(false)
     end
 
     it "loads missing optional symbols and raises only when called" do
@@ -104,8 +118,42 @@ RSpec.describe WGPU::Native, :skip_gpu_check do
   end
 
   describe WGPU::Native::AbiVerifier do
-    it "matches every Ruby FFI enum with the checksum-pinned webgpu.h" do
+    it "uses the repository fixture before a downloaded header" do
+      allow(ENV).to receive(:[]).and_call_original
+      allow(ENV).to receive(:[]).with("WGPU_HEADER_PATH").and_return(nil)
+
+      expect(described_class.default_header_path).to eq(described_class.fixture_header_path)
+    end
+
+    it "matches every Ruby FFI enum and the loaded library version" do
       expect(described_class.new.verify!).to be(true)
+    end
+
+    it "reports enum differences from the pinned fixture" do
+      source = File.read(described_class.fixture_header_path)
+      changed = source.sub(
+        "WGPUAdapterType_DiscreteGPU = 0x00000001",
+        "WGPUAdapterType_DiscreteGPU = 0x00000009"
+      )
+
+      Tempfile.create(["webgpu-enum-difference", ".h"]) do |header|
+        header.write(changed)
+        header.flush
+
+        expect { described_class.new(header_path: header.path).verify! }
+          .to raise_error(WGPU::Error, /AdapterType:.*discretegpu=1 \(header 9\)/)
+      end
+    end
+
+    it "reports the loaded library version when it differs from the pin" do
+      native = Module.new
+      native.define_singleton_method(:wgpuGetVersion) { 0x1A000400 }
+
+      expect { described_class.new(native:).verify! }
+        .to raise_error(
+          WGPU::Error,
+          /runtime v26\.0\.4\.0 \(0x1a000400\).*pinned v27\.0\.4\.0 \(0x1b000400\)/
+        )
     end
   end
 end

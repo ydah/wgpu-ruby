@@ -31,11 +31,11 @@ namespace :wgpu do
     puts "Removed #{path}"
   end
 
-  desc "Compare Ruby enum definitions with the pinned wgpu-native webgpu.h"
+  desc "Verify Ruby enums and the loaded library against the pinned wgpu-native release"
   task verify_abi: :install do
     require_relative "lib/wgpu"
     WGPU::Native::AbiVerifier.new.verify!
-    puts "wgpu-native #{WGPU::Native::Distribution::VERSION} enum ABI verified"
+    puts "wgpu-native #{WGPU::Native::Distribution::VERSION} ABI verified"
   end
 end
 

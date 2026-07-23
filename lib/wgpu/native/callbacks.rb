@@ -8,6 +8,12 @@ module WGPU
     callback :request_device_callback,
              [RequestDeviceStatus, :pointer, StringView.by_value, :pointer, :pointer], :void
 
+    callback :create_compute_pipeline_async_callback,
+             [CreatePipelineAsyncStatus, :pointer, StringView.by_value, :pointer, :pointer], :void
+
+    callback :create_render_pipeline_async_callback,
+             [CreatePipelineAsyncStatus, :pointer, StringView.by_value, :pointer, :pointer], :void
+
     callback :buffer_map_callback,
              [MapAsyncStatus, StringView.by_value, :pointer, :pointer], :void
 

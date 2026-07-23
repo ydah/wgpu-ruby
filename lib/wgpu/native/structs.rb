@@ -378,6 +378,22 @@ module WGPU
              :userdata2, :pointer
     end
 
+    class CreateComputePipelineAsyncCallbackInfo < FFI::Struct
+      layout :next_in_chain, :pointer,
+             :mode, :uint32,
+             :callback, :pointer,
+             :userdata1, :pointer,
+             :userdata2, :pointer
+    end
+
+    class CreateRenderPipelineAsyncCallbackInfo < FFI::Struct
+      layout :next_in_chain, :pointer,
+             :mode, :uint32,
+             :callback, :pointer,
+             :userdata1, :pointer,
+             :userdata2, :pointer
+    end
+
     class BufferMapCallbackInfo < FFI::Struct
       layout :next_in_chain, :pointer,
              :mode, :uint32,

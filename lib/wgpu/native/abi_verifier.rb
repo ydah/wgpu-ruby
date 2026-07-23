@@ -29,9 +29,11 @@ module WGPU
 
       def verify!
         differences = enum_differences
+        version_difference = native_version_difference
+        differences.unshift(version_difference) if version_difference
         return true if differences.empty?
 
-        raise WGPU::Error, "wgpu-native ABI enum differences:\n#{differences.join("\n")}"
+        raise WGPU::Error, "wgpu-native ABI differences:\n#{differences.join("\n")}"
       end
 
       def enum_differences
@@ -48,6 +50,9 @@ module WGPU
         override = ENV["WGPU_HEADER_PATH"]
         return File.expand_path(override) if override && !override.empty?
 
+        fixture = fixture_header_path
+        return fixture if File.file?(fixture)
+
         candidates = Distribution.cache_directories.map do |cache_dir|
           File.join(cache_dir, "include", "webgpu", "webgpu.h")
         end
@@ -56,12 +61,26 @@ module WGPU
 
         raise WGPU::Error, <<~MSG.chomp
           Pinned #{Distribution::VERSION} webgpu.h was not found.
-          Run `bundle exec rake wgpu:install`, or set WGPU_HEADER_PATH.
-          Searched: #{candidates.join(", ")}
+          Restore the repository ABI fixture, run `bundle exec rake wgpu:install`,
+          or set WGPU_HEADER_PATH.
+          Searched: #{([fixture] + candidates).join(", ")}
         MSG
       end
 
+      def self.fixture_header_path
+        File.expand_path("fixtures/webgpu-#{Distribution::VERSION}-enums.h", __dir__)
+      end
+
       private
+
+      def native_version_difference
+        actual = @native.wgpuGetVersion
+        expected = Distribution::ENCODED_VERSION
+        return if actual == expected
+
+        "version: runtime #{Distribution.version_string(actual)} (0x#{format("%08x", actual)}) " \
+          "does not match pinned #{Distribution::VERSION} (0x#{format("%08x", expected)})"
+      end
 
       def parse_header
         source = File.read(@header_path)

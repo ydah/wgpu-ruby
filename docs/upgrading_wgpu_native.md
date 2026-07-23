@@ -9,11 +9,23 @@ Use this checklist for each pinned wgpu-native update.
    remains.
 4. Run `bundle exec rake wgpu:clean wgpu:install` on a disposable cache, then
    test an existing legacy cache separately.
-5. Run `bundle exec rake wgpu:verify_abi`. Review every enum addition, removal,
-   and value change against the checksum-pinned `webgpu.h`.
+5. Regenerate the repository enum fixture from the installed release header:
+
+   ```console
+   bundle exec ruby script/update_abi_fixture.rb \
+     "$WGPU_CACHE_DIR/<version>/include/webgpu/webgpu.h"
+   ```
+
+   The generated comment records the source SHA-256. For the current
+   `v27.0.4.0` release, `include/webgpu/webgpu.h` is
+   `a6fccf7f9f2fa674d1adfe4f6ea89784a876395b2307bfc2b06f2e77cf6cf356`.
+   Review every enum addition, removal, and value change, then run
+   `bundle exec rake wgpu:verify_abi`.
 6. Compare structs, field offsets, callback signatures, and exported functions.
-   Add ABI specs for changed layouts. Mark functions optional only when the Ruby
-   API has a valid capability fallback.
+   Add ABI specs for changed layouts. Check `include/webgpu/wgpu.h` for native
+   extensions as well. `wgpuGetVersion` encodes `vMAJOR.MINOR.PATCH.BUILD` in
+   four bytes; the verifier compares it with `Distribution::VERSION`. Mark
+   functions optional only when the Ruby API has a valid capability fallback.
 7. Run `bundle exec rspec --tag '~gpu'`, RuboCop, RBS validation, and YARD.
 8. Run every `:gpu` spec and `rake examples:ci` with lavapipe. Run rendering
    examples on at least one real surface backend.
@@ -23,4 +35,3 @@ Use this checklist for each pinned wgpu-native update.
 
 For a dry run, use a temporary `WGPU_CACHE_DIR` and restore the version/artifact
 edits afterward. Never replace the shared user cache as part of verification.
-

@@ -7,9 +7,16 @@ module WGPU
     module Distribution
       VERSION = "v27.0.4.0"
       RELEASE_BASE_URL = "https://github.com/gfx-rs/wgpu-native/releases/download/#{VERSION}"
+      VERSION_COMPONENTS = VERSION.delete_prefix("v").split(".").map { |part| Integer(part, 10) }.freeze
+      unless VERSION_COMPONENTS.length == 4 && VERSION_COMPONENTS.all? { |part| part.between?(0, 255) }
+        raise "wgpu-native VERSION must have four byte-sized components: #{VERSION}"
+      end
+      # wgpuGetVersion packs vMAJOR.MINOR.PATCH.BUILD into four big-endian bytes.
+      ENCODED_VERSION = VERSION_COMPONENTS.reduce(0) { |encoded, part| (encoded << 8) | part }
       UNIMPLEMENTED_CAPABILITIES = {
         compilation_info: [VERSION].freeze,
-        buffer_map_state: [VERSION].freeze
+        buffer_map_state: [VERSION].freeze,
+        pipeline_async: [VERSION].freeze
       }.freeze
 
       ARTIFACTS = [
@@ -82,6 +89,11 @@ module WGPU
 
       def release_url(artifact)
         "#{RELEASE_BASE_URL}/#{artifact.fetch(:archive)}"
+      end
+
+      def version_string(encoded_version)
+        components = [24, 16, 8, 0].map { |shift| (encoded_version >> shift) & 0xFF }
+        "v#{components.join(".")}"
       end
 
       def capability_implemented?(name)

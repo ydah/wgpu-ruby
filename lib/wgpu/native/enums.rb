@@ -61,6 +61,14 @@ module WGPU
       :unknown, 0x00000004
     )
 
+    CreatePipelineAsyncStatus = enum(
+      :success, 0x00000001,
+      :instance_dropped, 0x00000002,
+      :validation_error, 0x00000003,
+      :internal_error, 0x00000004,
+      :unknown, 0x00000005
+    )
+
     DeviceLostReason = enum(
       :unknown, 0x00000001,
       :destroyed, 0x00000002,

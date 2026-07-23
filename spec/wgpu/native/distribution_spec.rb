@@ -4,10 +4,16 @@ require "tmpdir"
 require_relative "../../../lib/wgpu/native/distribution"
 
 RSpec.describe WGPU::Native::Distribution, :no_native do
+  it "encodes the pinned version as returned by wgpuGetVersion" do
+    expect(described_class::ENCODED_VERSION).to eq(0x1B000400)
+    expect(described_class.version_string(described_class::ENCODED_VERSION))
+      .to eq(described_class::VERSION)
+  end
+
   it "keeps version-specific capability guards with the distribution metadata" do
     expect(described_class.capability_implemented?(:compilation_info)).to be(false)
     expect(described_class.capability_implemented?(:buffer_map_state)).to be(false)
-    expect(described_class.capability_implemented?(:pipeline_async)).to be(true)
+    expect(described_class.capability_implemented?(:pipeline_async)).to be(false)
   end
 
   describe ".artifact_for" do

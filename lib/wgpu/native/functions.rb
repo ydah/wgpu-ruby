@@ -2,6 +2,9 @@
 
 module WGPU
   module Native
+    attach_function :wgpuGetVersion,
+                    [], :uint32
+
     attach_function :wgpuCreateInstance,
                     [InstanceDescriptor.by_ref], :pointer
 
@@ -68,8 +71,16 @@ module WGPU
     attach_function :wgpuDeviceCreateRenderPipeline,
                     [:pointer, :pointer], :pointer
 
+    attach_function :wgpuDeviceCreateRenderPipelineAsync,
+                    [:pointer, RenderPipelineDescriptor.by_ref, CreateRenderPipelineAsyncCallbackInfo.by_value],
+                    Future.by_value
+
     attach_function :wgpuDeviceCreateComputePipeline,
                     [:pointer, ComputePipelineDescriptor.by_ref], :pointer
+
+    attach_function :wgpuDeviceCreateComputePipelineAsync,
+                    [:pointer, ComputePipelineDescriptor.by_ref, CreateComputePipelineAsyncCallbackInfo.by_value],
+                    Future.by_value
 
     attach_function :wgpuDeviceCreateCommandEncoder,
                     [:pointer, CommandEncoderDescriptor.by_ref], :pointer
