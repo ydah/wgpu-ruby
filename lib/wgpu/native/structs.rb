@@ -395,7 +395,8 @@ module WGPU
              :mip_level_count, :uint32,
              :base_array_layer, :uint32,
              :array_layer_count, :uint32,
-             :aspect, TextureAspect
+             :aspect, TextureAspect,
+             :usage, :uint64
     end
 
     class SamplerDescriptor < FFI::Struct

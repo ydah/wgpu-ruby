@@ -65,6 +65,16 @@ RSpec.describe WGPU::Native, :skip_gpu_check do
     end
   end
 
+  describe "texture view descriptor layout" do
+    it "includes the v27 usage field at the ABI-stable offset" do
+      descriptor = WGPU::Native::TextureViewDescriptor
+
+      expect(descriptor.members.last).to eq(:usage)
+      expect(descriptor.offset_of(:usage)).to eq(56)
+      expect(descriptor.size).to eq(64)
+    end
+  end
+
   describe "runtime capability checks" do
     it "reports availability from bound functions" do
       expect(WGPU::Native.future_api?).to eq(

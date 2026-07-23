@@ -38,7 +38,7 @@ module WGPU
       texture
     end
 
-    def create_view(label: nil, format: nil, dimension: nil, base_mip_level: 0, mip_level_count: nil, base_array_layer: 0, array_layer_count: nil, aspect: :all)
+    def create_view(label: nil, format: nil, dimension: nil, base_mip_level: 0, mip_level_count: nil, base_array_layer: 0, array_layer_count: nil, aspect: :all, usage: nil)
       TextureView.new(self,
         label: label,
         format: format,
@@ -47,7 +47,8 @@ module WGPU
         mip_level_count: mip_level_count,
         base_array_layer: base_array_layer,
         array_layer_count: array_layer_count,
-        aspect: aspect
+        aspect: aspect,
+        usage: usage
       )
     end
 

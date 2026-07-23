@@ -111,6 +111,18 @@ RSpec.describe WGPU::Texture, :gpu do
       view.release
       texture.release
     end
+
+    it "creates a texture view with restricted usage" do
+      texture = device.create_texture(
+        size: { width: 64, height: 64 },
+        format: :rgba8_unorm,
+        usage: [:texture_binding, :render_attachment]
+      )
+      view = texture.create_view(usage: :texture_binding)
+      expect(view).to be_a(WGPU::TextureView)
+      view.release
+      texture.release
+    end
   end
 
   describe "#width" do

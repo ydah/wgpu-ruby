@@ -4,7 +4,7 @@ module WGPU
   class TextureView
     attr_reader :handle, :texture
 
-    def initialize(texture, label: nil, format: nil, dimension: nil, base_mip_level: 0, mip_level_count: nil, base_array_layer: 0, array_layer_count: nil, aspect: :all)
+    def initialize(texture, label: nil, format: nil, dimension: nil, base_mip_level: 0, mip_level_count: nil, base_array_layer: 0, array_layer_count: nil, aspect: :all, usage: nil)
       @texture = texture
 
       desc = Native::TextureViewDescriptor.new
@@ -32,6 +32,11 @@ module WGPU
       desc[:base_array_layer] = base_array_layer
       desc[:array_layer_count] = array_layer_count || 0xFFFFFFFF
       desc[:aspect] = Native::EnumHelper.coerce(Native::TextureAspect, aspect, name: "texture aspect")
+      desc[:usage] = Native::EnumHelper.coerce_flags(
+        Native::TextureUsage,
+        usage || :none,
+        name: "texture view usage"
+      )
 
       @handle = Native.wgpuTextureCreateView(texture.handle, desc)
       raise ResourceError, "Failed to create texture view" if @handle.null?
