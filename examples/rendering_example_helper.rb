@@ -2,7 +2,6 @@
 # frozen_string_literal: true
 
 require_relative "../lib/wgpu"
-require_relative "../lib/wgpu/window"
 
 module ExampleRendering
   Setup = Struct.new(
@@ -20,6 +19,8 @@ module ExampleRendering
   )
 
   def self.setup(title:, width:, height:, present_mode: :fifo)
+    require_relative "../lib/wgpu/window"
+
     window = WGPU::Window::SDLWindow.new(title: title, width: width, height: height)
 
     instance = WGPU::Instance.new
@@ -52,10 +53,10 @@ module ExampleRendering
     )
   end
 
-  def self.resize_if_needed(setup)
-    width, height = setup.window.drawable_size
+  def self.resize_if_needed(setup, force: false, drawable_size: nil)
+    width, height = drawable_size || setup.window.drawable_size
     return false if width <= 0 || height <= 0
-    return false if width == setup.width && height == setup.height
+    return false if !force && width == setup.width && height == setup.height
 
     setup.surface.configure(
       device: setup.device,
@@ -66,7 +67,35 @@ module ExampleRendering
     )
     setup.width = width
     setup.height = height
+    yield(width, height) if block_given?
     true
+  end
+
+  def self.acquire_surface_texture(setup, &on_resize)
+    drawable_size = setup.window.drawable_size
+    return nil if drawable_size.any? { |dimension| dimension <= 0 }
+
+    resize_if_needed(setup, drawable_size: drawable_size, &on_resize)
+    recovery_attempted = false
+
+    begin
+      setup.surface.current_texture
+    rescue WGPU::SurfaceAcquisitionError => e
+      case e.status
+      when :timeout
+        nil
+      when :outdated, :lost
+        raise if recovery_attempted
+
+        drawable_size = setup.window.drawable_size
+        raise unless resize_if_needed(setup, force: true, drawable_size: drawable_size, &on_resize)
+
+        recovery_attempted = true
+        retry
+      else
+        raise
+      end
+    end
   end
 
   def self.cleanup(setup)

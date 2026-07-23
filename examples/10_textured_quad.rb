@@ -146,9 +146,17 @@ while running
 
   next unless running
 
+  surface_texture = nil
+  view = nil
+  encoder = nil
+  pass = nil
+  command_buffer = nil
+
   begin
     # Get current texture from surface
-    surface_texture = surface.current_texture
+    surface_texture = ExampleRendering.acquire_surface_texture(render)
+    next unless surface_texture
+
     view = surface_texture.create_view
 
     # Create command encoder
@@ -176,15 +184,13 @@ while running
     queue.submit([command_buffer])
     surface.present
 
-    # Cleanup per-frame resources
-    view.release
-    command_buffer.release
-    encoder.release
-    pass.release
-
     frame_count += 1
-  rescue WGPU::SurfaceError => e
-    puts "Surface error: #{e.message}, skipping frame"
+  ensure
+    command_buffer&.release
+    pass&.release
+    encoder&.release
+    view&.release
+    surface_texture&.release
   end
 end
 

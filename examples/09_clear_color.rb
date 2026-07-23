@@ -47,9 +47,13 @@ while running
 
   next unless running
 
-  begin
-    ExampleRendering.resize_if_needed(render)
+  texture = nil
+  view = nil
+  encoder = nil
+  pass = nil
+  command_buffer = nil
 
+  begin
     # Calculate animated color based on time
     elapsed = Time.now - start_time
     r = (Math.sin(elapsed * 0.5) + 1.0) / 2.0
@@ -57,7 +61,9 @@ while running
     b = (Math.sin((elapsed * 0.9) + 4.0) + 1.0) / 2.0
 
     # Get current texture from surface
-    texture = surface.current_texture
+    texture = ExampleRendering.acquire_surface_texture(render)
+    next unless texture
+
     view = texture.create_view
 
     # Create command encoder
@@ -82,15 +88,13 @@ while running
     queue.submit([command_buffer])
     surface.present
 
-    # Cleanup per-frame resources
-    view.release
-    command_buffer.release
-    encoder.release
-    pass.release
-
     frame_count += 1
-  rescue WGPU::SurfaceError => e
-    puts "Surface error: #{e.message}, skipping frame"
+  ensure
+    command_buffer&.release
+    pass&.release
+    encoder&.release
+    view&.release
+    texture&.release
   end
 end
 

@@ -168,14 +168,39 @@ uniform_buffer = device.create_buffer(
   usage: [:uniform, :copy_dst]
 )
 
-# Create depth texture
-depth_texture = device.create_texture(
-  label: "depth texture",
-  size: { width: WIDTH, height: HEIGHT, depth_or_array_layers: 1 },
-  format: :depth24_plus,
-  usage: :render_attachment
-)
-depth_view = depth_texture.create_view
+# Create depth resources that match the configured surface size.
+create_depth_resources = lambda do |width, height|
+  new_texture = device.create_texture(
+    label: "depth texture",
+    size: { width: width, height: height, depth_or_array_layers: 1 },
+    format: :depth24_plus,
+    usage: :render_attachment
+  )
+
+  begin
+    [new_texture, new_texture.create_view]
+  rescue StandardError
+    new_texture.release
+    raise
+  end
+end
+
+depth_width = render.width
+depth_height = render.height
+depth_texture, depth_view = create_depth_resources.call(depth_width, depth_height)
+
+# Keep the example-specific depth attachment in sync with surface reconfiguration.
+resize_depth_resources = lambda do |width, height|
+  next if width == depth_width && height == depth_height
+
+  new_texture, new_view = create_depth_resources.call(width, height)
+  depth_view.release
+  depth_texture.release
+  depth_texture = new_texture
+  depth_view = new_view
+  depth_width = width
+  depth_height = height
+end
 
 # Create bind group layout
 bind_group_layout = device.create_bind_group_layout(
@@ -254,13 +279,23 @@ while running
 
   next unless running
 
+  texture = nil
+  color_view = nil
+  encoder = nil
+  pass = nil
+  command_buffer = nil
+
   begin
+    # Get current texture and resize the matching depth attachment when needed.
+    texture = ExampleRendering.acquire_surface_texture(render, &resize_depth_resources)
+    next unless texture
+
     # Calculate MVP matrix
     elapsed = Time.now - start_time
     angle_y = elapsed * 0.5
     angle_x = elapsed * 0.3
 
-    aspect = WIDTH.to_f / HEIGHT
+    aspect = render.width.to_f / render.height
     projection = MatrixMath.perspective(Math::PI / 4.0, aspect, 0.1, 100.0)
     view = MatrixMath.translate(0.0, 0.0, -6.0)
     model = MatrixMath.multiply(MatrixMath.rotate_y(angle_y), MatrixMath.rotate_x(angle_x))
@@ -270,8 +305,6 @@ while running
     # Update uniform buffer
     queue.write_buffer(uniform_buffer, 0, mvp.pack("f*"))
 
-    # Get current texture from surface
-    texture = surface.current_texture
     color_view = texture.create_view
 
     # Create command encoder
@@ -307,15 +340,13 @@ while running
     queue.submit([command_buffer])
     surface.present
 
-    # Cleanup per-frame resources
-    color_view.release
-    command_buffer.release
-    encoder.release
-    pass.release
-
     frame_count += 1
-  rescue WGPU::SurfaceError => e
-    puts "Surface error: #{e.message}, skipping frame"
+  ensure
+    command_buffer&.release
+    pass&.release
+    encoder&.release
+    color_view&.release
+    texture&.release
   end
 end
 
