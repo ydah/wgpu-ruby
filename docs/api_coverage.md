@@ -130,7 +130,7 @@ native interoperation. Every native wrapper also has the common
 | `10_textured_quad.rb` | Texture sampling | texture upload/view, sampler, texture bind group, draw |
 | `11_rotating_cube.rb` | Depth-tested 3D rendering | vertex/index/uniform/depth resources, pipeline, per-frame uniform write, draw |
 | `12_headless_render.rb` | Offscreen triangle and readback | render-to-texture, block render pass, aligned texture readback, pixel assertions |
-| `13_error_handling.rb` | Typed and labeled validation error | `BufferError`, operation/label context |
+| `13_error_handling.rb` | Typed and labeled validation error | `ArgumentError`, operation/label context |
 | `14_async_map.rb` | Async map and callback retention | `map_async`, `AsyncTask`, typed mapped reads, GC stress |
 | `15_timestamp_query.rb` | Feature-gated GPU timestamps | timestamp pass writes, query resolution, u64 readback |
 | `16_texture_readback.rb` | Non-aligned-width texture readback | texture row alignment helpers, caller-owned reusable staging |
