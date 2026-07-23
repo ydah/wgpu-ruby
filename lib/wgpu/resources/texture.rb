@@ -2,7 +2,7 @@
 
 module WGPU
   class Texture
-    attr_reader :handle
+    attr_reader :handle, :surface_status
 
     def initialize(device, label: nil, size:, format:, usage:, dimension: :d2, mip_level_count: 1, sample_count: 1, view_formats: [])
       @device = device
@@ -30,10 +30,11 @@ module WGPU
       end
     end
 
-    def self.from_handle(handle)
+    def self.from_handle(handle, surface_status: nil)
       texture = allocate
       texture.instance_variable_set(:@handle, handle)
       texture.instance_variable_set(:@device, nil)
+      texture.instance_variable_set(:@surface_status, surface_status)
       texture
     end
 

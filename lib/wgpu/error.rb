@@ -17,6 +17,14 @@ module WGPU
   class PipelineError < Error; end
   class CommandError < Error; end
   class SurfaceError < Error; end
+  class SurfaceAcquisitionError < SurfaceError
+    attr_reader :status
+
+    def initialize(status, message = nil)
+      @status = status
+      super(message || "Failed to get current surface texture: #{status}")
+    end
+  end
   class RenderBundleError < Error; end
 
   GPUError = Data.define(:type, :message) do

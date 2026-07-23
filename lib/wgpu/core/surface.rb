@@ -142,7 +142,7 @@ module WGPU
 
       status = Native::SurfaceGetCurrentTextureStatus[surface_texture[:status]]
       unless status == :success_optimal || status == :success_suboptimal
-        raise SurfaceError, "Failed to get current texture: #{status}"
+        raise SurfaceAcquisitionError.new(status)
       end
 
       texture_ptr = surface_texture[:texture]
@@ -150,7 +150,7 @@ module WGPU
         raise SurfaceError, "Surface returned null texture"
       end
 
-      Texture.from_handle(texture_ptr)
+      Texture.from_handle(texture_ptr, surface_status: status)
     end
 
     def get_current_texture

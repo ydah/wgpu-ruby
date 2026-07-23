@@ -36,4 +36,11 @@ RSpec.describe WGPU::GPUError, :skip_gpu_check do
     expect(state[:uncaptured_error]).to be(uncaptured)
     expect(state[:device_lost]).to be(lost)
   end
+
+  it "retains a typed surface acquisition status" do
+    error = WGPU::SurfaceAcquisitionError.new(:outdated)
+
+    expect(error.status).to eq(:outdated)
+    expect(error.message).to include("outdated")
+  end
 end
