@@ -3,7 +3,17 @@
 The release workflow uses RubyGems Trusted Publishing and runs for `v*` tags.
 Before the first automated release, configure a trusted publisher for the
 `ydah/wgpu-ruby` repository, workflow `release.yml`, and GitHub environment
-`release` on RubyGems.org.
+`release` on RubyGems.org. The trusted publisher and protected environment are
+repository/RubyGems.org settings, so they cannot be configured or verified from
+this repository alone.
+
+## Dry run
+
+Run the **Push gem** workflow manually from the GitHub Actions page before
+tagging a release. A `workflow_dispatch` run executes the same native build,
+ABI verification, CPU and GPU specs, examples, RuboCop, RBS, YARD, coverage,
+and gem build checks as a tag run. It skips both the tag/version comparison and
+the RubyGems publishing action, so it cannot publish a gem.
 
 Release checklist:
 

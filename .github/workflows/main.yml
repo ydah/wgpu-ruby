@@ -7,6 +7,43 @@ on:
   pull_request:
 
 jobs:
+  native-artifacts:
+    name: Native artifact / ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x86_64
+            runner: ubuntu-24.04
+            archive: wgpu-linux-x86_64-release.zip
+          - platform: linux-aarch64
+            runner: ubuntu-24.04-arm
+            archive: wgpu-linux-aarch64-release.zip
+          - platform: macos-x86_64
+            runner: macos-15-intel
+            archive: wgpu-macos-x86_64-release.zip
+          - platform: macos-aarch64
+            runner: macos-15
+            archive: wgpu-macos-aarch64-release.zip
+          - platform: windows-x86_64
+            runner: windows-2025
+            archive: wgpu-windows-x86_64-msvc-release.zip
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+      - name: Download, verify, and load the platform artifact
+        env:
+          EXPECTED_ARCHIVE: ${{ matrix.archive }}
+        run: |
+          bundle exec rake wgpu:install
+          bundle exec ruby -Ilib -e 'require "wgpu"; actual = WGPU::Native::Distribution.artifact_for.fetch(:archive); abort "expected #{ENV.fetch("EXPECTED_ARCHIVE")}, got #{actual}" unless actual == ENV.fetch("EXPECTED_ARCHIVE")'
+
   test:
     name: Ruby ${{ matrix.ruby }} / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -66,10 +103,12 @@ jobs:
           spec/wgpu/native/loader_spec.rb
 
   no-sdl:
-    name: Core install without SDL3
+    name: Gem install and compute without SDL3
     runs-on: ubuntu-latest
     env:
       BUNDLE_WITHOUT: examples
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      WGPU_BACKEND: vulkan
     steps:
       - uses: actions/checkout@v6
         with:
@@ -78,9 +117,25 @@ jobs:
         with:
           ruby-version: "3.4"
           bundler-cache: true
+      - name: Install lavapipe
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvulkan1 mesa-vulkan-drivers libgl1-mesa-dri
+          lavapipe_icd="$(find /usr/share/vulkan/icd.d -maxdepth 1 -name 'lvp_icd*.json' -print -quit)"
+          test -n "${lavapipe_icd}"
+          echo "VK_ICD_FILENAMES=${lavapipe_icd}" >> "${GITHUB_ENV}"
       - run: bundle exec rake wgpu:install
-      - name: Require core without loading SDL3
-        run: bundle exec ruby -Ilib -e 'require "wgpu"; abort "SDL3 unexpectedly loaded" if defined?(SDL3)'
+      - name: Build and install the gem without SDL3
+        run: |
+          bundle exec gem build wgpu.gemspec
+          gem install --local --install-dir tmp/no-sdl-gems --ignore-dependencies wgpu-*.gem
+      - name: Require the installed core without loading SDL3
+        run: GEM_PATH="tmp/no-sdl-gems:$(ruby -e 'puts Gem.path.join(":")')" ruby -e 'require "wgpu"; abort "SDL3 unexpectedly loaded" if defined?(SDL3)'
+      - name: Run compute examples without SDL3
+        run: |
+          for example in examples/0[1-6]_*.rb; do
+            bundle exec ruby "${example}"
+          done
 
   lint:
     name: RuboCop
@@ -108,6 +163,7 @@ jobs:
           bundler-cache: true
       - run: bundle exec rbs -I sig validate
       - run: bundle exec yard doc --fail-on-warning
+      - run: bundle exec ruby script/check_yard_coverage.rb
 
   gpu:
     name: GPU integration (lavapipe)
@@ -134,11 +190,13 @@ jobs:
         run: vulkaninfo --summary
       - name: Download and verify wgpu-native
         run: bundle exec rake wgpu:install
-      - name: Run GPU tests and reject skips
+      - name: Run baseline GPU tests and reject every skip
         run: |
           mkdir -p tmp
-          bundle exec rspec --tag gpu --format progress --format json --out tmp/gpu-results.json
-          bundle exec ruby -rjson -e 'examples = JSON.parse(File.read("tmp/gpu-results.json")).fetch("examples"); abort "GPU unavailable: GPU examples skipped" if examples.any? { |example| example["pending_message"] == "GPU not available" }'
+          bundle exec rspec --tag gpu --tag '~optional_feature' --format progress --format json --out tmp/gpu-results.json
+          bundle exec ruby -rjson -e 'examples = JSON.parse(File.read("tmp/gpu-results.json")).fetch("examples"); pending = examples.select { |example| example["status"] == "pending" }; abort "GPU examples skipped: #{pending.map { |example| example["pending_message"] }.inspect}" unless pending.empty?'
+      - name: Exercise optional GPU features
+        run: bundle exec rspec --tag gpu --tag optional_feature
       - name: Run compute examples
         run: bundle exec rake examples:ci
 
@@ -158,5 +216,6 @@ jobs:
       - name: Run GPU tests when Metal is exposed
         run: |
           mkdir -p tmp
-          bundle exec rspec --tag gpu --format progress --format json --out tmp/gpu-results.json
-          bundle exec ruby -rjson -e 'examples = JSON.parse(File.read("tmp/gpu-results.json")).fetch("examples"); abort "Metal unavailable: GPU examples skipped" if examples.any? { |example| example["pending_message"] == "GPU not available" }'
+          bundle exec rspec --tag gpu --tag '~optional_feature' --format progress --format json --out tmp/gpu-results.json
+          bundle exec ruby -rjson -e 'examples = JSON.parse(File.read("tmp/gpu-results.json")).fetch("examples"); pending = examples.select { |example| example["status"] == "pending" }; abort "GPU examples skipped: #{pending.map { |example| example["pending_message"] }.inspect}" unless pending.empty?'
+      - run: bundle exec rspec --tag gpu --tag optional_feature

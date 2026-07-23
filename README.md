@@ -53,6 +53,7 @@ export WGPU_LIB_PATH=/path/to/libwgpu_native.so
 
 ### Basic Setup
 
+<!-- wgpu-example: run; expect: Using: -->
 ```ruby
 require 'wgpu'
 
@@ -62,10 +63,15 @@ device = adapter.request_device
 queue = device.queue
 
 puts "Using: #{adapter.info[:device]} (#{adapter.info[:backend_type]})"
+
+device.release
+adapter.release
+instance.release
 ```
 
 ### Compute Shader Example
 
+<!-- wgpu-example: run; expect: [0.0, 2.0, 4.0 -->
 ```ruby
 require 'wgpu'
 
@@ -118,14 +124,23 @@ pass.set_pipeline(pipeline)
 pass.set_bind_group(0, bind_group)
 pass.dispatch_workgroups(input_data.size / 64)
 pass.end_pass
-queue.submit([encoder.finish])
+command_buffer = encoder.finish
+queue.submit(command_buffer)
 
 # Read results
-result = queue.read_buffer(buffer, device: device)
+result = queue.read_buffer(buffer)
 output_data = result.unpack("f*")
 
 puts output_data[0, 10].inspect
 # => [0.0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0]
+
+[
+  command_buffer, pass, encoder, pipeline, pipeline_layout,
+  bind_group, bind_group_layout, shader, buffer
+].each(&:release)
+device.release
+adapter.release
+instance.release
 ```
 
 ## Examples
@@ -147,6 +162,7 @@ Headless validation examples:
 - `13_error_handling.rb` - Typed, labeled validation errors
 - `14_async_map.rb` - Async mapping through a forced GC cycle
 - `15_timestamp_query.rb` - Feature-gated timestamp query resolution
+- `16_texture_readback.rb` - Aligned readback of a 65-pixel-wide texture with reusable staging
 
 Rendering examples (SDL3):
 - `07_triangle.rb` - Basic triangle rendering

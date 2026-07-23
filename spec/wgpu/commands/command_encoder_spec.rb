@@ -190,7 +190,7 @@ RSpec.describe WGPU::CommandEncoder, :gpu do
       encoder.finish
     end
 
-    it "accepts timestamp_writes when supported" do
+    it "accepts timestamp_writes when supported", :optional_feature do
       skip "timestamp_query not supported by adapter" unless adapter.features.include?(:timestamp_query)
 
       timestamp_device = begin

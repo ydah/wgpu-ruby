@@ -1,6 +1,6 @@
 # WebGPU API coverage
 
-This page records the public Ruby API implemented by wgpu-ruby 1.1 and its
+This page records the public Ruby API implemented by wgpu-ruby 1.2 and its
 relationship to the WebGPU object model. It is a baseline, not a claim that
 every WebGPU feature is implemented.
 
@@ -33,12 +33,12 @@ Legend:
 | `GPUCompilationMessage` | `WGPU::CompilationMessage` | ✅ | Message, type, line, column, offset, and length are typed fields. |
 | `GPUComputePassEncoder` | `WGPU::ComputePass` | ✅ | |
 | `GPUComputePipeline` | `WGPU::ComputePipeline` | ✅ | Auto layout and override constants are accepted. |
-| `GPUDevice` | `WGPU::Device` | ◐ | Resource creation, error scopes, polling, features, and limits are exposed; device-lost and uncaptured-error subscriptions are not. |
-| `GPUDeviceLostInfo` | — | ❌ | |
-| `GPUError` | error hashes and `WGPU::Error` subclasses | ◐ | There is no common `GPUError` value object yet. |
+| `GPUDevice` | `WGPU::Device` | ◐ | Resource creation, error scopes, polling, features, limits, device-lost notification, and uncaptured-error subscriptions are exposed. |
+| `GPUDeviceLostInfo` | callback `reason` and `message` | ◐ | `Device#on_device_lost` exposes the native reason and message without a separate wrapper object. |
+| `GPUError` | `WGPU::GPUError` | ✅ | Typed value object with `type`, `message`, `to_h`, and exception conversion. |
 | `GPUExternalTexture` | — | ❌ | Browser video/external-texture import is not exposed. |
-| `GPUInternalError` | — | ❌ | |
-| `GPUOutOfMemoryError` | — | ❌ | |
+| `GPUInternalError` | `WGPU::InternalError` | ◐ | Represented as a Ruby exception converted from `GPUError`. |
+| `GPUOutOfMemoryError` | `WGPU::OutOfMemoryError` | ◐ | Represented as a Ruby exception converted from `GPUError`. |
 | `GPUPipelineError` | `WGPU::PipelineError` | ◐ | Ruby exception exists; native pipeline error data is not a value object. |
 | `GPUPipelineLayout` | `WGPU::PipelineLayout` | ✅ | |
 | `GPUQuerySet` | `WGPU::QuerySet` | ✅ | |
@@ -53,10 +53,10 @@ Legend:
 | `GPUSupportedLimits` | `Hash` | ◐ | Represented as a Ruby hash. |
 | `GPUTexture` | `WGPU::Texture` | ✅ | |
 | `GPUTextureView` | `WGPU::TextureView` | ✅ | |
-| `GPUUncapturedErrorEvent` | — | ❌ | |
-| `GPUValidationError` | class-specific Ruby exceptions | ◐ | Validation errors are translated during resource creation. |
+| `GPUUncapturedErrorEvent` | `Device#on_uncaptured_error` | ◐ | The callback receives `WGPU::GPUError`; there is no DOM event wrapper. |
+| `GPUValidationError` | `WGPU::ValidationError` | ◐ | Validation errors are translated during resource creation and typed error-scope handling. |
 | `WGSLLanguageFeatures` | — | ❌ | |
-| `GPUObjectBase` | `#handle`, labels on descriptors | ◐ | Common released-state behavior is not yet centralized. |
+| `GPUObjectBase` | `WGPU::NativeResource` | ✅ | All native wrappers share `handle`, `label`, `released?`, `use`, `inspect`, idempotent release, and use-after-release guards. |
 | `GPUPipelineBase` | `#get_bind_group_layout` | ✅ | Implemented by compute and render pipelines. |
 | `GPUCommandsMixin` | `WGPU::CommandEncoder` | ✅ | |
 | `GPUDebugCommandsMixin` | encoder/pass debug methods | ✅ | |
@@ -76,19 +76,22 @@ and DOM canvas ownership) are not implemented.
 
 Constructors are omitted where objects are normally returned by another
 wrapper. `handle` readers are listed once here as a common escape hatch for
-native interoperation.
+native interoperation. Every native wrapper also has the common
+`label`, `released?`, `use`, `inspect`, and idempotent `release` methods from
+`WGPU::NativeResource`.
 
 | Ruby class | Public class methods | Public instance methods |
 |---|---|---|
+| `WGPU` | — | module methods `log_level`, `log_level=`, `on_log` |
 | `WGPU::Instance` | — | `request_adapter`, `request_adapter_async`, `enumerate_adapters`, `enumerate_adapters_async`, `process_events`, `get_canvas_context`, `release`, `handle` |
 | `WGPU::Adapter` | `request`, `from_handle` | `request_device`, `request_device_async`, `info`, `name`, `vendor`, `adapter_type`, `backend_type`, `features`, `has_feature?`, `limits`, `summary`, `release`, `handle`, `instance` |
-| `WGPU::Device` | `request` | `queue`, `adapter`, `adapter_info`, `features`, `has_feature?`, `limits`, all `create_*` methods, `push_error_scope`, `pop_error_scope`, `pop_error_scope_async`, `with_error_scope`, `poll`, `destroy`, `release`, `handle` |
+| `WGPU::Device` | `request` | `queue`, `adapter`, `adapter_info`, `features`, `has_feature?`, `limits`, all `create_*` methods, `push_error_scope`, `pop_error_scope`, `pop_error_scope_async`, `pop_error_scope_typed`, `with_error_scope`, `on_uncaptured_error`, `on_device_lost`, `poll`, `destroy`, `release`, `handle` |
 | `WGPU::Queue` | — | `submit`, `write_buffer`, `write_texture`, `read_buffer`, `read_texture`, `on_submitted_work_done`, `on_submitted_work_done_async`, `release`, `handle` |
 | `WGPU::Surface` | `from_metal_layer`, `from_windows_hwnd`, `from_xlib_window`, `from_wayland_surface` | `configure`, `unconfigure`, `current_texture`, `get_current_texture`, `present`, `get_configuration`, `get_preferred_format`, `capabilities`, `release`, `handle` |
 | `WGPU::CanvasContext` | — | `configure`, `unconfigure`, `get_current_texture`, `present`, `get_configuration`, `get_preferred_format`, `set_physical_size`, `physical_size`, `release` |
-| `WGPU::Buffer` | — | `write`, `mapped_range`, `get_mapped_range`, `unmap`, `map_sync`, `map_async`, `read_mapped_data`, `read_mapped`, `write_mapped`, `read_mapped_floats`, `map_state`, `size`, `usage`, `destroy`, `release`, `handle` |
-| `WGPU::BufferMappedRange` | — | `read_bytes`, `write_bytes`, `read_floats`, `write_floats` |
-| `WGPU::Texture` | `from_handle` | `create_view`, `width`, `height`, `depth_or_array_layers`, `size`, `mip_level_count`, `sample_count`, `dimension`, `format`, `usage`, `destroy`, `release`, `handle` |
+| `WGPU::Buffer` | — | `write`, `mapped_range`, `get_mapped_range`, `unmap`, `map_sync`, `map_async`, `read_mapped_data`, `read_mapped`, `write_mapped`, typed `read_mapped_*` methods, `read_mapped_values`, `map_state`, `size`, `usage`, `destroy`, `release`, `handle` |
+| `WGPU::BufferMappedRange` | — | `read`, `write`, `read_bytes`, `write_bytes`, and typed `read_*` / `write_*` methods |
+| `WGPU::Texture` | `from_handle` | `create_view`, `width`, `height`, `depth_or_array_layers`, `size`, `mip_level_count`, `sample_count`, `dimension`, `format`, `usage`, `surface_status`, `destroy`, `release`, `handle` |
 | `WGPU::TextureView` | `from_handle` | `texture`, `size`, `release`, `handle` |
 | `WGPU::Sampler` | — | `release`, `handle` |
 | `WGPU::QuerySet` | — | `count`, `type`, `destroy`, `release`, `handle` |
@@ -105,6 +108,10 @@ native interoperation.
 | `WGPU::RenderBundleEncoder` | — | pipeline/bind-group/buffer setup, draw/debug methods, `finish`, `release`, `handle` |
 | `WGPU::RenderBundle` | — | `release`, `handle` |
 | `WGPU::AsyncTask` | — | `wait`, `value`, `then`, `complete?`, `pending?`, `error` |
+| `WGPU::GPUError` | `from_hash` | `type`, `message`, `exception_class`, `raise!`, `to_h` |
+| `WGPU::CompilationMessage` | — | `type`, `message`, `line_num`/`line`, `line_pos`/`column`, `offset`, `length`, `to_s` |
+| `WGPU::DataTypes` | `pack`, `unpack`, `byte_size`, `to_pointer`, `validate_alignment!` | — |
+| `WGPU::TextureFormat` | `block_size`, `block_dimensions`, `bytes_per_row`, `aligned_bytes_per_row`, `block_info` | — |
 | `WGPU::Window::SDLWindow` | — | `create_surface`, event/key helpers, `drawable_size`, `close` |
 
 ## Examples as executable specifications
@@ -126,6 +133,7 @@ native interoperation.
 | `13_error_handling.rb` | Typed and labeled validation error | `BufferError`, operation/label context |
 | `14_async_map.rb` | Async map and callback retention | `map_async`, `AsyncTask`, typed mapped reads, GC stress |
 | `15_timestamp_query.rb` | Feature-gated GPU timestamps | timestamp pass writes, query resolution, u64 readback |
+| `16_texture_readback.rb` | Non-aligned-width texture readback | texture row alignment helpers, caller-owned reusable staging |
 
 When a public API changes, the corresponding example is part of the acceptance
 test surface. Compute and headless examples are automated in GPU CI; SDL

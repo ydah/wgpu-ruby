@@ -3,6 +3,7 @@
 Compute workloads need Ruby 3.2+, the `wgpu` gem, and a supported GPU driver.
 They do not need SDL3.
 
+<!-- wgpu-example: run; expect: [2, 4, 6, 8] -->
 ```ruby
 require "wgpu"
 

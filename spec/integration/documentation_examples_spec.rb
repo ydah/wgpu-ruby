@@ -5,24 +5,34 @@ require "rbconfig"
 require "tempfile"
 
 RSpec.describe "documentation examples", :gpu do
-  it "executes the compute getting-started example" do
-    guide = File.expand_path("../../docs/getting_started_compute.md", __dir__)
-    markdown = File.read(guide)
-    code = markdown.match(/```ruby\n(.+?)\n```/m)&.captures&.first
-    raise "Ruby code block missing from #{guide}" unless code
+  EXAMPLE_PATTERN =
+    /<!-- wgpu-example: run; expect: (?<expected>.+?) -->\s*```ruby\n(?<code>.+?)\n```/m
 
-    Tempfile.create(["wgpu-doc-example", ".rb"]) do |file|
-      file.write(code)
-      file.flush
+  it "executes every marked Ruby example" do
+    root = File.expand_path("../..", __dir__)
+    markdown_files = [File.join(root, "README.md"), *Dir[File.join(root, "docs", "*.md")]]
+    examples = markdown_files.flat_map do |path|
+      File.read(path).scan(EXAMPLE_PATTERN).map do |expected, code|
+        [path, expected, code]
+      end
+    end
 
-      stdout, stderr, status = Open3.capture3(
-        RbConfig.ruby,
-        "-I#{File.expand_path("../../lib", __dir__)}",
-        file.path
-      )
+    expect(examples).not_to be_empty
 
-      expect(status).to be_success, stderr
-      expect(stdout).to include("[2, 4, 6, 8]")
+    examples.each do |path, expected, code|
+      Tempfile.create(["wgpu-doc-example", ".rb"]) do |file|
+        file.write(code)
+        file.flush
+
+        stdout, stderr, status = Open3.capture3(
+          RbConfig.ruby,
+          "-I#{File.join(root, "lib")}",
+          file.path
+        )
+
+        expect(status).to be_success, "#{path} failed:\n#{stderr}"
+        expect(stdout).to include(expected), "#{path} did not print #{expected.inspect}"
+      end
     end
   end
 end

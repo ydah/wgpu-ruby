@@ -40,7 +40,6 @@ RSpec.describe WGPU::Adapter, :gpu do
 
     it "contains feature symbols when present" do
       features = adapter.features
-      skip "No features available" if features.empty?
       features.each do |feature|
         expect(feature).to be_a(Symbol)
       end
