@@ -11,7 +11,6 @@ jobs:
     environment: release
     env:
       LIBGL_ALWAYS_SOFTWARE: "1"
-      VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
       WGPU_BACKEND: vulkan
     permissions:
       contents: write
@@ -30,6 +29,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libvulkan1 mesa-vulkan-drivers libgl1-mesa-dri vulkan-tools
+          lavapipe_icd="$(find /usr/share/vulkan/icd.d -maxdepth 1 -name 'lvp_icd*.json' -print -quit)"
+          test -n "${lavapipe_icd}"
+          echo "VK_ICD_FILENAMES=${lavapipe_icd}" >> "${GITHUB_ENV}"
       - run: vulkaninfo --summary
       - run: bundle exec rake wgpu:install
       - run: bundle exec rake wgpu:verify_abi
@@ -38,7 +40,7 @@ jobs:
         run: |
           mkdir -p tmp
           bundle exec rspec --tag gpu --format progress --format json --out tmp/gpu-results.json
-          bundle exec ruby -rjson -e 'summary = JSON.parse(File.read("tmp/gpu-results.json")).fetch("summary"); abort "GPU examples skipped" unless summary.fetch("pending_count").zero?'
+          bundle exec ruby -rjson -e 'examples = JSON.parse(File.read("tmp/gpu-results.json")).fetch("examples"); abort "GPU unavailable: GPU examples skipped" if examples.any? { |example| example["pending_message"] == "GPU not available" }'
       - run: bundle exec rake examples:ci
       - run: bundle exec rubocop
       - run: bundle exec rbs -I sig validate

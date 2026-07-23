@@ -29,18 +29,18 @@ RSpec.describe WGPU::Native::Distribution, :no_native do
     it "prefers WGPU_CACHE_DIR" do
       env = { "WGPU_CACHE_DIR" => "/cache/wgpu", "XDG_CACHE_HOME" => "/cache/xdg" }
       expect(described_class.primary_cache_dir(env:, home:, host_os: "linux"))
-        .to eq(File.join("/cache/wgpu", described_class::VERSION))
+        .to eq(File.join(File.expand_path(env.fetch("WGPU_CACHE_DIR")), described_class::VERSION))
     end
 
     it "uses XDG_CACHE_HOME before the OS default" do
       env = { "XDG_CACHE_HOME" => "/cache/xdg" }
       expect(described_class.primary_cache_dir(env:, home:, host_os: "linux"))
-        .to eq(File.join("/cache/xdg", "wgpu-ruby", described_class::VERSION))
+        .to eq(File.join(File.expand_path(env.fetch("XDG_CACHE_HOME")), "wgpu-ruby", described_class::VERSION))
     end
 
     it "uses the macOS cache convention" do
       expect(described_class.primary_cache_dir(env: {}, home:, host_os: "darwin"))
-        .to eq(File.join(home, "Library", "Caches", "wgpu-ruby", described_class::VERSION))
+        .to eq(File.join(File.expand_path(home), "Library", "Caches", "wgpu-ruby", described_class::VERSION))
     end
 
     it "uses LOCALAPPDATA on Windows" do
