@@ -138,6 +138,22 @@ module WGPU
       @handle.respond_to?(:null?) && @handle.null?
     end
 
+    # Yields this wrapper and always releases it when the block exits.
+    #
+    # This is Ruby convenience API; WebGPU itself has no block-scoped resource
+    # primitive.
+    #
+    # @yieldparam resource [NativeResource] this resource
+    # @return the block result
+    def use
+      raise ArgumentError, "block is required" unless block_given?
+
+      ensure_not_released!
+      yield self
+    ensure
+      release if block_given? && !released?
+    end
+
     def inspect
       label_text = @label ? " label=#{@label.inspect}" : ""
       "#<#{self.class}#{label_text} released=#{released?}>"

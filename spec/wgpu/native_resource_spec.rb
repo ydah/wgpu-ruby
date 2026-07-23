@@ -56,6 +56,22 @@ RSpec.describe WGPU::NativeResource, :skip_gpu_check do
     resource = resource_class.new(label: "upload")
     expect(resource.inspect).to include("label=\"upload\"", "released=false")
   end
+
+  it "returns the block result and releases after use" do
+    resource = resource_class.new
+
+    result = resource.use { |yielded| yielded.ping }
+
+    expect(result).to eq(:pong)
+    expect(resource).to be_released
+  end
+
+  it "releases after an exception in use" do
+    resource = resource_class.new
+
+    expect { resource.use { raise "boom" } }.to raise_error("boom")
+    expect(resource).to be_released
+  end
 end
 
 RSpec.describe WGPU::CallbackKeepalive, :skip_gpu_check do

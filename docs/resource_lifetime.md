@@ -14,6 +14,20 @@ Ruby finalizers.
 - Calling another public native operation after `release` raises
   `WGPU::ResourceError` before FFI is entered. `handle`, `released?`, `label`,
   `inspect`, and repeated `release` remain available.
+- Every native wrapper supports `use { |resource| ... }`. It returns the block
+  result and releases the wrapper in `ensure`, including when the block raises.
+  This is Ruby convenience API rather than a WebGPU operation.
+
+For short-lived resources:
+
+```ruby
+bytes = device.create_buffer(
+  size: 256,
+  usage: %i[map_read copy_dst]
+).use do |buffer|
+  # Work with buffer; it is released on every exit path.
+end
+```
 
 ## Wrapper matrix
 
@@ -67,12 +81,8 @@ submitted command buffer or its referenced Ruby wrappers.
 
 `Queue#read_buffer` and `Queue#read_texture` create a temporary staging buffer,
 submit a copy, map and read it, then unmap and release it. In the baseline
-implementation cleanup occurs on the successful path. Applications should not
-attempt to retain or release this internal buffer.
-
-The readback helpers' cleanup behavior on exceptions is tracked separately;
-until ensure-based cleanup is present, prefer explicit copy/map operations when
-injecting exceptions or aborting reads.
+implementation cleanup runs from `ensure`, including exceptional paths.
+Applications should not attempt to retain or release this internal buffer.
 
 ## Leak diagnostics
 
