@@ -4,7 +4,7 @@ Ruby bindings for [WebGPU](https://www.w3.org/TR/webgpu/) via [wgpu-native](http
 
 ## Features
 
-- Complete WebGPU API bindings using Ruby-FFI
+- WebGPU object bindings using Ruby-FFI, with an explicit [API coverage matrix](docs/api_coverage.md)
 - GPU compute shaders (GPGPU)
 - Cross-platform support (macOS, Linux, Windows)
 - Automatic wgpu-native library download on gem install
@@ -12,7 +12,7 @@ Ruby bindings for [WebGPU](https://www.w3.org/TR/webgpu/) via [wgpu-native](http
 ## Requirements
 
 - Ruby 3.2+
-- Supported platforms:
+- Supported platforms (64-bit only):
   - macOS (x86_64, arm64)
   - Linux (x86_64, aarch64)
   - Windows (x86_64)
@@ -38,6 +38,8 @@ gem install wgpu
 ```
 
 The wgpu-native library is automatically downloaded from GitHub Releases during installation.
+See [Installation and native artifacts](docs/installation.md) for supported
+artifacts, cache behavior, manual installation, and troubleshooting.
 
 ### Custom wgpu-native Build
 
@@ -158,6 +160,9 @@ Rendering examples require SDL3 on your system:
 brew install sdl3
 ```
 
+The current gem release also installs the `sdl3` Ruby gem as a runtime
+dependency, although `require "wgpu"` itself does not load the window helper.
+
 ## API Overview
 
 ### Core Objects
@@ -206,6 +211,10 @@ cd wgpu-ruby
 bundle install
 bundle exec rake spec
 ```
+
+See [Resource lifetime](docs/resource_lifetime.md) before building long-running
+applications, and use the [API coverage matrix](docs/api_coverage.md) to check
+the current relationship to the WebGPU specification.
 
 ## Contributing
 
