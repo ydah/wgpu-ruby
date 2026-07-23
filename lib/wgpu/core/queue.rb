@@ -13,11 +13,19 @@ module WGPU
       buffers = Array(command_buffers)
       return if buffers.empty?
 
+      if buffers.map(&:object_id).uniq.length != buffers.length
+        raise CommandError, "The same command buffer cannot appear twice in one submission"
+      end
+      buffers.each do |buffer|
+        raise CommandError, "Command buffer has already been submitted" if buffer.submitted?
+      end
+
       handles = buffers.map(&:handle)
       ptr = FFI::MemoryPointer.new(:pointer, handles.size)
       ptr.write_array_of_pointer(handles)
 
       Native.wgpuQueueSubmit(@handle, handles.size, ptr)
+      buffers.each(&:mark_submitted!)
     end
 
     def write_buffer(buffer, buffer_offset, data, data_offset: 0, size: nil, type: :f32)

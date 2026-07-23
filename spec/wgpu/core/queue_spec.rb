@@ -24,6 +24,27 @@ RSpec.describe WGPU::Queue, :gpu do
       command_buffer = encoder.finish
       expect { queue.submit(command_buffer) }.not_to raise_error
     end
+
+    it "rejects a command buffer that was already submitted" do
+      encoder = device.create_command_encoder
+      command_buffer = encoder.finish
+      queue.submit(command_buffer)
+
+      expect { queue.submit(command_buffer) }.to raise_error(
+        WGPU::CommandError,
+        /already been submitted/
+      )
+    end
+
+    it "rejects the same command buffer twice in one submission" do
+      encoder = device.create_command_encoder
+      command_buffer = encoder.finish
+
+      expect { queue.submit([command_buffer, command_buffer]) }.to raise_error(
+        WGPU::CommandError,
+        /cannot appear twice/
+      )
+    end
   end
 
   describe "#write_buffer" do

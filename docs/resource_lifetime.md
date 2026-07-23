@@ -74,8 +74,9 @@ Release in the reverse order of creation:
 6. Release the device (which releases its queue), then adapter and instance.
 
 Explicitly synchronize work when the application needs resources to remain
-alive until completion. A successful `Queue#submit` does not itself release the
-submitted command buffer or its referenced Ruby wrappers.
+alive until completion. A `CommandBuffer` is consumed by its first successful
+`Queue#submit`; submitting it again raises `WGPU::CommandError`. Submission
+does not itself release the command buffer or its referenced Ruby wrappers.
 
 ## Internal staging resources
 
