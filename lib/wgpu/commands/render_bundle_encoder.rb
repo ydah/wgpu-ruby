@@ -21,13 +21,19 @@ module WGPU
         desc[:label][:length] = 0
       end
 
-      formats = Array(color_formats).map { |f| Native::TextureFormat[f] }
+      formats = Array(color_formats).map do |format|
+        Native::EnumHelper.coerce(Native::TextureFormat, format, name: "color format")
+      end
       @formats_ptr = FFI::MemoryPointer.new(:uint32, formats.size)
       @formats_ptr.write_array_of_uint32(formats)
       desc[:color_format_count] = formats.size
       desc[:color_formats] = @formats_ptr
 
-      desc[:depth_stencil_format] = depth_stencil_format || :undefined
+      desc[:depth_stencil_format] = Native::EnumHelper.coerce(
+        Native::TextureFormat,
+        depth_stencil_format || :undefined,
+        name: "depth stencil format"
+      )
       desc[:sample_count] = sample_count
       desc[:depth_read_only] = depth_read_only ? 1 : 0
       desc[:stencil_read_only] = stencil_read_only ? 1 : 0
@@ -65,7 +71,8 @@ module WGPU
       raise RenderBundleError, "Encoder already finished" if @finished
 
       size ||= buffer.size - offset
-      Native.wgpuRenderBundleEncoderSetIndexBuffer(@handle, buffer.handle, format, offset, size)
+      format_value = Native::EnumHelper.coerce(Native::IndexFormat, format, name: "index format")
+      Native.wgpuRenderBundleEncoderSetIndexBuffer(@handle, buffer.handle, format_value, offset, size)
     end
 
     def draw(vertex_count, instance_count: 1, first_vertex: 0, first_instance: 0)

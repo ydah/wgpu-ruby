@@ -78,44 +78,63 @@ module WGPU
 
       if entry_hash[:buffer]
         buffer_info = entry_hash[:buffer]
-        entry[:buffer][:type] = buffer_info[:type] || :storage
+        entry[:buffer][:type] = Native::EnumHelper.coerce(
+          Native::BufferBindingType,
+          buffer_info[:type] || :storage,
+          name: "buffer binding type"
+        )
         entry[:buffer][:has_dynamic_offset] = buffer_info[:has_dynamic_offset] ? 1 : 0
         entry[:buffer][:min_binding_size] = buffer_info[:min_binding_size] || 0
       end
 
       if entry_hash[:sampler]
         sampler_info = entry_hash[:sampler]
-        entry[:sampler][:type] = sampler_info[:type] || :filtering
+        entry[:sampler][:type] = Native::EnumHelper.coerce(
+          Native::SamplerBindingType,
+          sampler_info[:type] || :filtering,
+          name: "sampler binding type"
+        )
       end
 
       if entry_hash[:texture]
         texture_info = entry_hash[:texture]
-        entry[:texture][:sample_type] = texture_info[:sample_type] || :float
-        entry[:texture][:view_dimension] = texture_info[:view_dimension] || :d2
+        entry[:texture][:sample_type] = Native::EnumHelper.coerce(
+          Native::TextureSampleType,
+          texture_info[:sample_type] || :float,
+          name: "texture sample type"
+        )
+        entry[:texture][:view_dimension] = Native::EnumHelper.coerce(
+          Native::TextureViewDimension,
+          texture_info[:view_dimension] || :d2,
+          name: "texture view dimension"
+        )
         entry[:texture][:multisampled] = texture_info[:multisampled] ? 1 : 0
       end
 
       if entry_hash[:storage_texture]
         st_info = entry_hash[:storage_texture]
-        entry[:storage_texture][:access] = st_info[:access] || :write_only
-        entry[:storage_texture][:format] = st_info[:format]
-        entry[:storage_texture][:view_dimension] = st_info[:view_dimension] || :d2
+        entry[:storage_texture][:access] = Native::EnumHelper.coerce(
+          Native::StorageTextureAccess,
+          st_info[:access] || :write_only,
+          name: "storage texture access"
+        )
+        entry[:storage_texture][:format] = Native::EnumHelper.coerce(
+          Native::TextureFormat,
+          st_info.fetch(:format),
+          name: "storage texture format"
+        )
+        entry[:storage_texture][:view_dimension] = Native::EnumHelper.coerce(
+          Native::TextureViewDimension,
+          st_info[:view_dimension] || :d2,
+          name: "texture view dimension"
+        )
       end
 
       entry
     end
 
     def normalize_visibility(visibility)
-      case visibility
-      when Integer
-        visibility
-      when Symbol
-        Native::ShaderStage[visibility]
-      when Array
-        visibility.reduce(0) { |acc, v| acc | Native::ShaderStage[v] }
-      else
-        raise ArgumentError, "Invalid visibility: #{visibility}"
-      end
+      Native::EnumHelper.coerce_flags(Native::ShaderStage, visibility, name: "shader visibility")
     end
   end
 end

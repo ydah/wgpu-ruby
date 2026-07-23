@@ -17,7 +17,7 @@ module WGPU
         desc[:label][:data] = nil
         desc[:label][:length] = 0
       end
-      desc[:type] = type
+      desc[:type] = Native::EnumHelper.coerce(Native::QueryType, type, name: "query type")
       desc[:count] = count
 
       @handle = Native.wgpuDeviceCreateQuerySet(device.handle, desc)

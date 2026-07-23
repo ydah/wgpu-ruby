@@ -61,7 +61,8 @@ module WGPU
 
     def set_index_buffer(buffer, format, offset: 0, size: nil)
       size ||= buffer.size - offset
-      Native.wgpuRenderPassEncoderSetIndexBuffer(@handle, buffer.handle, format, offset, size)
+      format_value = Native::EnumHelper.coerce(Native::IndexFormat, format, name: "index format")
+      Native.wgpuRenderPassEncoderSetIndexBuffer(@handle, buffer.handle, format_value, offset, size)
     end
 
     def draw(vertex_count, instance_count: 1, first_vertex: 0, first_instance: 0)
@@ -174,8 +175,8 @@ module WGPU
         ca[:view] = att[:view].handle
         ca[:depth_slice] = att[:depth_slice] || 0xFFFFFFFF
         ca[:resolve_target] = att[:resolve_target]&.handle
-        ca[:load_op] = att[:load_op] || :clear
-        ca[:store_op] = att[:store_op] || :store
+        ca[:load_op] = Native::EnumHelper.coerce(Native::LoadOp, att[:load_op] || :clear, name: "load op")
+        ca[:store_op] = Native::EnumHelper.coerce(Native::StoreOp, att[:store_op] || :store, name: "store op")
 
         clear = att[:clear_value] || { r: 0.0, g: 0.0, b: 0.0, a: 1.0 }
         ca[:clear_value][:r] = clear[:r] || 0.0
@@ -192,12 +193,28 @@ module WGPU
       @pointers << ds
 
       ds[:view] = att[:view].handle
-      ds[:depth_load_op] = att[:depth_load_op] || :clear
-      ds[:depth_store_op] = att[:depth_store_op] || :store
+      ds[:depth_load_op] = Native::EnumHelper.coerce(
+        Native::LoadOp,
+        att[:depth_load_op] || :clear,
+        name: "depth load op"
+      )
+      ds[:depth_store_op] = Native::EnumHelper.coerce(
+        Native::StoreOp,
+        att[:depth_store_op] || :store,
+        name: "depth store op"
+      )
       ds[:depth_clear_value] = att[:depth_clear_value] || 1.0
       ds[:depth_read_only] = att[:depth_read_only] ? 1 : 0
-      ds[:stencil_load_op] = att[:stencil_load_op] || :clear
-      ds[:stencil_store_op] = att[:stencil_store_op] || :store
+      ds[:stencil_load_op] = Native::EnumHelper.coerce(
+        Native::LoadOp,
+        att[:stencil_load_op] || :clear,
+        name: "stencil load op"
+      )
+      ds[:stencil_store_op] = Native::EnumHelper.coerce(
+        Native::StoreOp,
+        att[:stencil_store_op] || :store,
+        name: "stencil store op"
+      )
       ds[:stencil_clear_value] = att[:stencil_clear_value] || 0
       ds[:stencil_read_only] = att[:stencil_read_only] ? 1 : 0
 

@@ -6,30 +6,15 @@ module WGPU
 
     def initialize(device, label: nil, layout:, vertex:, primitive: {}, depth_stencil: nil, multisample: {}, fragment: nil)
       @device = device
-      @pointers = []
-
-      desc = Native::RenderPipelineDescriptor.new
-      desc[:next_in_chain] = nil
-      setup_label(desc, label)
-      desc[:layout] = normalize_layout(layout)
-
-      setup_vertex_state(desc[:vertex], vertex)
-      setup_primitive_state(desc[:primitive], primitive)
-      setup_multisample_state(desc[:multisample], multisample)
-
-      if depth_stencil
-        ds_ptr = setup_depth_stencil_state(depth_stencil)
-        desc[:depth_stencil] = ds_ptr
-      else
-        desc[:depth_stencil] = nil
-      end
-
-      if fragment
-        frag_ptr = setup_fragment_state(fragment)
-        desc[:fragment] = frag_ptr
-      else
-        desc[:fragment] = nil
-      end
+      desc, @pointers = build_descriptor(
+        label:,
+        layout:,
+        vertex:,
+        primitive:,
+        depth_stencil:,
+        multisample:,
+        fragment:
+      )
 
       device.push_error_scope(:validation)
       @handle = Native.wgpuDeviceCreateRenderPipeline(device.handle, desc)
@@ -55,19 +40,29 @@ module WGPU
 
     private
 
-    def setup_label(desc, label)
-      if label
-        ptr = FFI::MemoryPointer.from_string(label)
-        @pointers << ptr
-        desc[:label][:data] = ptr
-        desc[:label][:length] = label.bytesize
-      else
-        desc[:label][:data] = nil
-        desc[:label][:length] = 0
-      end
+    def build_descriptor(label:, layout:, vertex:, primitive:, depth_stencil:, multisample:, fragment:)
+      @pointers = []
+      desc = Native::RenderPipelineDescriptor.new
+      desc[:next_in_chain] = nil
+      DescriptorHelpers.set_label(desc, label, keepalive: @pointers)
+      desc[:layout] = normalize_layout(layout)
+
+      setup_vertex_state(desc[:vertex], vertex)
+      setup_primitive_state(desc[:primitive], primitive)
+      setup_multisample_state(desc[:multisample], multisample)
+      desc[:depth_stencil] = depth_stencil ? setup_depth_stencil_state(depth_stencil) : nil
+      desc[:fragment] = fragment ? setup_fragment_state(fragment) : nil
+
+      [desc, @pointers]
     end
 
     def setup_vertex_state(vertex_state, vertex)
+      DescriptorHelpers.validate_keys!(
+        vertex,
+        allowed: %i[module entry_point constants buffers],
+        required: [:module],
+        context: "render pipeline vertex descriptor"
+      )
       vertex_state[:next_in_chain] = nil
       vertex_state[:module] = vertex[:module].handle
 
@@ -97,8 +92,18 @@ module WGPU
       @pointers << layouts_ptr
 
       buffers.each_with_index do |buf, i|
+        DescriptorHelpers.validate_keys!(
+          buf,
+          allowed: %i[array_stride step_mode attributes],
+          required: [:array_stride],
+          context: "vertex buffer layout"
+        )
         layout = Native::VertexBufferLayout.new(layouts_ptr + (i * Native::VertexBufferLayout.size))
-        layout[:step_mode] = buf[:step_mode] || :vertex
+        layout[:step_mode] = Native::EnumHelper.coerce(
+          Native::VertexStepMode,
+          buf[:step_mode] || :vertex,
+          name: "vertex step mode"
+        )
         layout[:array_stride] = buf[:array_stride]
 
         attrs = buf[:attributes] || []
@@ -109,8 +114,18 @@ module WGPU
           attrs_ptr = FFI::MemoryPointer.new(Native::VertexAttribute, attrs.size)
           @pointers << attrs_ptr
           attrs.each_with_index do |attr, j|
+            DescriptorHelpers.validate_keys!(
+              attr,
+              allowed: %i[format offset shader_location],
+              required: %i[format offset shader_location],
+              context: "vertex attribute"
+            )
             a = Native::VertexAttribute.new(attrs_ptr + (j * Native::VertexAttribute.size))
-            a[:format] = attr[:format]
+            a[:format] = Native::EnumHelper.coerce(
+              Native::VertexFormat,
+              attr[:format],
+              name: "vertex format"
+            )
             a[:offset] = attr[:offset]
             a[:shader_location] = attr[:shader_location]
           end
@@ -123,15 +138,41 @@ module WGPU
     end
 
     def setup_primitive_state(primitive_state, primitive)
+      DescriptorHelpers.validate_keys!(
+        primitive,
+        allowed: %i[topology strip_index_format front_face cull_mode unclipped_depth],
+        context: "primitive state"
+      )
       primitive_state[:next_in_chain] = nil
-      primitive_state[:topology] = primitive[:topology] || :triangle_list
-      primitive_state[:strip_index_format] = primitive[:strip_index_format] || :undefined
-      primitive_state[:front_face] = primitive[:front_face] || :ccw
-      primitive_state[:cull_mode] = primitive[:cull_mode] || :none
+      primitive_state[:topology] = Native::EnumHelper.coerce(
+        Native::PrimitiveTopology,
+        primitive[:topology] || :triangle_list,
+        name: "primitive topology"
+      )
+      primitive_state[:strip_index_format] = Native::EnumHelper.coerce(
+        Native::IndexFormat,
+        primitive[:strip_index_format] || :undefined,
+        name: "strip index format"
+      )
+      primitive_state[:front_face] = Native::EnumHelper.coerce(
+        Native::FrontFace,
+        primitive[:front_face] || :ccw,
+        name: "front face"
+      )
+      primitive_state[:cull_mode] = Native::EnumHelper.coerce(
+        Native::CullMode,
+        primitive[:cull_mode] || :none,
+        name: "cull mode"
+      )
       primitive_state[:unclipped_depth] = primitive[:unclipped_depth] ? 1 : 0
     end
 
     def setup_multisample_state(multisample_state, multisample)
+      DescriptorHelpers.validate_keys!(
+        multisample,
+        allowed: %i[count mask alpha_to_coverage_enabled],
+        context: "multisample state"
+      )
       multisample_state[:next_in_chain] = nil
       multisample_state[:count] = multisample[:count] || 1
       multisample_state[:mask] = multisample[:mask] || 0xFFFFFFFF
@@ -139,12 +180,29 @@ module WGPU
     end
 
     def setup_depth_stencil_state(depth_stencil)
+      DescriptorHelpers.validate_keys!(
+        depth_stencil,
+        allowed: %i[
+          format depth_write_enabled depth_compare stencil_front stencil_back
+          stencil_read_mask stencil_write_mask depth_bias depth_bias_slope_scale depth_bias_clamp
+        ],
+        required: [:format],
+        context: "depth stencil state"
+      )
       ds = Native::DepthStencilState.new
       @pointers << ds
       ds[:next_in_chain] = nil
-      ds[:format] = depth_stencil[:format]
+      ds[:format] = Native::EnumHelper.coerce(
+        Native::TextureFormat,
+        depth_stencil[:format],
+        name: "depth stencil format"
+      )
       ds[:depth_write_enabled] = depth_stencil[:depth_write_enabled] ? 1 : 0
-      ds[:depth_compare] = depth_stencil[:depth_compare] || :always
+      ds[:depth_compare] = Native::EnumHelper.coerce(
+        Native::CompareFunction,
+        depth_stencil[:depth_compare] || :always,
+        name: "depth compare function"
+      )
 
       setup_stencil_face(ds[:stencil_front], depth_stencil[:stencil_front] || {})
       setup_stencil_face(ds[:stencil_back], depth_stencil[:stencil_back] || {})
@@ -159,13 +217,40 @@ module WGPU
     end
 
     def setup_stencil_face(face, config)
-      face[:compare] = config[:compare] || :always
-      face[:fail_op] = config[:fail_op] || :keep
-      face[:depth_fail_op] = config[:depth_fail_op] || :keep
-      face[:pass_op] = config[:pass_op] || :keep
+      DescriptorHelpers.validate_keys!(
+        config,
+        allowed: %i[compare fail_op depth_fail_op pass_op],
+        context: "stencil face state"
+      )
+      face[:compare] = Native::EnumHelper.coerce(
+        Native::CompareFunction,
+        config[:compare] || :always,
+        name: "stencil compare function"
+      )
+      face[:fail_op] = Native::EnumHelper.coerce(
+        Native::StencilOperation,
+        config[:fail_op] || :keep,
+        name: "stencil fail operation"
+      )
+      face[:depth_fail_op] = Native::EnumHelper.coerce(
+        Native::StencilOperation,
+        config[:depth_fail_op] || :keep,
+        name: "stencil depth fail operation"
+      )
+      face[:pass_op] = Native::EnumHelper.coerce(
+        Native::StencilOperation,
+        config[:pass_op] || :keep,
+        name: "stencil pass operation"
+      )
     end
 
     def setup_fragment_state(fragment)
+      DescriptorHelpers.validate_keys!(
+        fragment,
+        allowed: %i[module entry_point constants targets],
+        required: [:module],
+        context: "render pipeline fragment descriptor"
+      )
       frag = Native::FragmentState.new
       @pointers << frag
       frag[:next_in_chain] = nil
@@ -199,9 +284,19 @@ module WGPU
       @pointers << targets_ptr
 
       targets.each_with_index do |target, i|
+        DescriptorHelpers.validate_keys!(
+          target,
+          allowed: %i[format blend write_mask],
+          required: [:format],
+          context: "color target state"
+        )
         ct = Native::ColorTargetState.new(targets_ptr + (i * Native::ColorTargetState.size))
         ct[:next_in_chain] = nil
-        ct[:format] = target[:format]
+        ct[:format] = Native::EnumHelper.coerce(
+          Native::TextureFormat,
+          target[:format],
+          name: "color target format"
+        )
         ct[:write_mask] = normalize_write_mask(target[:write_mask])
 
         if target[:blend]
@@ -216,35 +311,52 @@ module WGPU
     end
 
     def setup_blend_state(blend)
+      DescriptorHelpers.validate_keys!(
+        blend,
+        allowed: %i[color alpha],
+        context: "blend state"
+      )
       bs = Native::BlendState.new
       @pointers << bs
 
       color = blend[:color] || {}
-      bs[:color][:operation] = color[:operation] || :add
-      bs[:color][:src_factor] = color[:src_factor] || :one
-      bs[:color][:dst_factor] = color[:dst_factor] || :zero
+      setup_blend_component(bs[:color], color, "color")
 
       alpha = blend[:alpha] || {}
-      bs[:alpha][:operation] = alpha[:operation] || :add
-      bs[:alpha][:src_factor] = alpha[:src_factor] || :one
-      bs[:alpha][:dst_factor] = alpha[:dst_factor] || :zero
+      setup_blend_component(bs[:alpha], alpha, "alpha")
 
       bs.to_ptr
     end
 
+    def setup_blend_component(component, config, name)
+      DescriptorHelpers.validate_keys!(
+        config,
+        allowed: %i[operation src_factor dst_factor],
+        context: "#{name} blend component"
+      )
+      component[:operation] = Native::EnumHelper.coerce(
+        Native::BlendOperation,
+        config[:operation] || :add,
+        name: "#{name} blend operation"
+      )
+      component[:src_factor] = Native::EnumHelper.coerce(
+        Native::BlendFactor,
+        config[:src_factor] || :one,
+        name: "#{name} source blend factor"
+      )
+      component[:dst_factor] = Native::EnumHelper.coerce(
+        Native::BlendFactor,
+        config[:dst_factor] || :zero,
+        name: "#{name} destination blend factor"
+      )
+    end
+
     def normalize_write_mask(mask)
-      case mask
-      when nil
-        Native::ColorWriteMask[:all]
-      when Integer
-        mask
-      when Symbol
-        Native::ColorWriteMask[mask]
-      when Array
-        mask.reduce(0) { |acc, m| acc | Native::ColorWriteMask[m] }
-      else
-        raise ArgumentError, "Invalid write_mask: #{mask}"
-      end
+      Native::EnumHelper.coerce_flags(
+        Native::ColorWriteMask,
+        mask || :all,
+        name: "color write mask"
+      )
     end
 
     def normalize_layout(layout)

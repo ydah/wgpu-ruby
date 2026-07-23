@@ -17,13 +17,21 @@ module WGPU
         desc[:label][:data] = nil
         desc[:label][:length] = 0
       end
-      desc[:format] = format || :undefined
-      desc[:dimension] = dimension || :undefined
+      desc[:format] = Native::EnumHelper.coerce(
+        Native::TextureFormat,
+        format || :undefined,
+        name: "texture view format"
+      )
+      desc[:dimension] = Native::EnumHelper.coerce(
+        Native::TextureViewDimension,
+        dimension || :undefined,
+        name: "texture view dimension"
+      )
       desc[:base_mip_level] = base_mip_level
       desc[:mip_level_count] = mip_level_count || 0xFFFFFFFF
       desc[:base_array_layer] = base_array_layer
       desc[:array_layer_count] = array_layer_count || 0xFFFFFFFF
-      desc[:aspect] = aspect
+      desc[:aspect] = Native::EnumHelper.coerce(Native::TextureAspect, aspect, name: "texture aspect")
 
       @handle = Native.wgpuTextureCreateView(texture.handle, desc)
       raise ResourceError, "Failed to create texture view" if @handle.null?

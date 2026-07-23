@@ -3,6 +3,8 @@
 require_relative "wgpu/version"
 require_relative "wgpu/error"
 require_relative "wgpu/native/loader"
+require_relative "wgpu/native/enum_helper"
+require_relative "wgpu/descriptor_helpers"
 require_relative "wgpu/native_resource"
 require_relative "wgpu/async_task"
 require_relative "wgpu/core/async_waiter"

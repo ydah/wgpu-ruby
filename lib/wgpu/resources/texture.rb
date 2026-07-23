@@ -7,40 +7,22 @@ module WGPU
     def initialize(device, label: nil, size:, format:, usage:, dimension: :d2, mip_level_count: 1, sample_count: 1, view_formats: [])
       @device = device
 
-      desc = Native::TextureDescriptor.new
-      desc[:next_in_chain] = nil
-      if label
-        @label_ptr = FFI::MemoryPointer.from_string(label)
-        desc[:label][:data] = @label_ptr
-        desc[:label][:length] = label.bytesize
-      else
-        desc[:label][:data] = nil
-        desc[:label][:length] = 0
-      end
-      desc[:usage] = normalize_usage(usage)
-      desc[:dimension] = dimension
-      desc[:size][:width] = size[:width] || size[0]
-      desc[:size][:height] = size[:height] || size[1] || 1
-      desc[:size][:depth_or_array_layers] = size[:depth_or_array_layers] || size[2] || 1
-      desc[:format] = format
-      desc[:mip_level_count] = mip_level_count
-      desc[:sample_count] = sample_count
-      desc[:view_format_count] = view_formats.size
-      if view_formats.empty?
-        @view_formats_ptr = nil
-        desc[:view_formats] = nil
-      else
-        format_values = view_formats.map do |vf|
-          vf.is_a?(Integer) ? vf : Native::TextureFormat[vf]
-        end
-        @view_formats_ptr = FFI::MemoryPointer.new(:uint32, format_values.size)
-        @view_formats_ptr.write_array_of_uint32(format_values)
-        desc[:view_formats] = @view_formats_ptr
-      end
+      desc, keepalive = build_descriptor(
+        label:,
+        size:,
+        format:,
+        usage:,
+        dimension:,
+        mip_level_count:,
+        sample_count:,
+        view_formats:
+      )
+      @descriptor_keepalive = keepalive
 
       device.push_error_scope(:validation)
       @handle = Native.wgpuDeviceCreateTexture(device.handle, desc)
       error = device.pop_error_scope
+      @descriptor_keepalive = nil
 
       if @handle.null? || (error[:type] && error[:type] != :no_error)
         msg = error[:message] || "Failed to create texture"
@@ -120,17 +102,36 @@ module WGPU
 
     private
 
-    def normalize_usage(usage)
-      case usage
-      when Integer
-        usage
-      when Symbol
-        Native::TextureUsage[usage]
-      when Array
-        usage.reduce(0) { |acc, u| acc | Native::TextureUsage[u] }
-      else
-        raise ArgumentError, "Invalid usage: #{usage}"
+    def build_descriptor(label:, size:, format:, usage:, dimension:, mip_level_count:, sample_count:, view_formats:)
+      keepalive = []
+      DescriptorHelpers.validate_keys!(
+        size,
+        allowed: [:width, :height, :depth_or_array_layers],
+        required: [:width],
+        context: "texture size"
+      )
+
+      desc = Native::TextureDescriptor.new
+      desc[:next_in_chain] = nil
+      DescriptorHelpers.set_label(desc, label, keepalive:)
+      desc[:usage] = normalize_usage(usage)
+      desc[:dimension] = Native::EnumHelper.coerce(Native::TextureDimension, dimension, name: "texture dimension")
+      desc[:size][:width] = size[:width] || size[0]
+      desc[:size][:height] = size[:height] || size[1] || 1
+      desc[:size][:depth_or_array_layers] = size[:depth_or_array_layers] || size[2] || 1
+      desc[:format] = Native::EnumHelper.coerce(Native::TextureFormat, format, name: "texture format")
+      desc[:mip_level_count] = mip_level_count
+      desc[:sample_count] = sample_count
+      desc[:view_format_count] = view_formats.size
+      format_values = view_formats.map do |view_format|
+        Native::EnumHelper.coerce(Native::TextureFormat, view_format, name: "view format")
       end
+      desc[:view_formats] = DescriptorHelpers.uint32_array(format_values, keepalive:)
+      [desc, keepalive]
+    end
+
+    def normalize_usage(usage)
+      Native::EnumHelper.coerce_flags(Native::TextureUsage, usage, name: "texture usage")
     end
   end
 end

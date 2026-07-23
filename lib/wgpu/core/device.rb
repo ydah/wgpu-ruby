@@ -248,7 +248,8 @@ module WGPU
     end
 
     def push_error_scope(filter = :validation)
-      Native.wgpuDevicePushErrorScope(@handle, filter)
+      filter_value = Native::EnumHelper.coerce(Native::ErrorFilter, filter, name: "error filter")
+      Native.wgpuDevicePushErrorScope(@handle, filter_value)
     end
 
     def pop_error_scope
@@ -314,10 +315,7 @@ module WGPU
       return feature if feature.is_a?(Integer)
 
       key = feature.to_s.strip.tr("-", "_").to_sym
-      value = Native::FeatureName[key]
-      raise ArgumentError, "Unknown feature name: #{feature}" if value.nil?
-
-      value
+      Native::EnumHelper.coerce(Native::FeatureName, key, name: "feature name")
     end
 
     def self.build_required_limits(adapter, required_limits)

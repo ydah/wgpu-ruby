@@ -6,32 +6,7 @@ module WGPU
 
     def initialize(device, label: nil, layout:, compute:)
       @device = device
-      @pointers = []
-
-      entry_point = compute[:entry_point] || "main"
-      entry_point_ptr = FFI::MemoryPointer.from_string(entry_point)
-      @pointers << entry_point_ptr
-
-      desc = Native::ComputePipelineDescriptor.new
-      desc[:next_in_chain] = nil
-      if label
-        label_ptr = FFI::MemoryPointer.from_string(label)
-        @pointers << label_ptr
-        desc[:label][:data] = label_ptr
-        desc[:label][:length] = label.bytesize
-      else
-        desc[:label][:data] = nil
-        desc[:label][:length] = 0
-      end
-      desc[:layout] = normalize_layout(layout)
-
-      desc[:compute][:next_in_chain] = nil
-      desc[:compute][:module] = compute.fetch(:module).handle
-      desc[:compute][:entry_point][:data] = entry_point_ptr
-      desc[:compute][:entry_point][:length] = entry_point.bytesize
-      desc[:compute][:constant_count] = 0
-      desc[:compute][:constants] = nil
-      setup_constants(desc[:compute], compute[:constants])
+      desc, @pointers = build_descriptor(label:, layout:, compute:)
 
       device.push_error_scope(:validation)
       @handle = Native.wgpuDeviceCreateComputePipeline(device.handle, desc)
@@ -56,6 +31,33 @@ module WGPU
     end
 
     private
+
+    def build_descriptor(label:, layout:, compute:)
+      DescriptorHelpers.validate_keys!(
+        compute,
+        allowed: %i[module entry_point constants],
+        required: [:module],
+        context: "compute pipeline stage"
+      )
+      @pointers = []
+      entry_point = compute[:entry_point] || "main"
+      entry_point_ptr = FFI::MemoryPointer.from_string(entry_point)
+      @pointers << entry_point_ptr
+
+      desc = Native::ComputePipelineDescriptor.new
+      desc[:next_in_chain] = nil
+      DescriptorHelpers.set_label(desc, label, keepalive: @pointers)
+      desc[:layout] = normalize_layout(layout)
+      desc[:compute][:next_in_chain] = nil
+      desc[:compute][:module] = compute.fetch(:module).handle
+      desc[:compute][:entry_point][:data] = entry_point_ptr
+      desc[:compute][:entry_point][:length] = entry_point.bytesize
+      desc[:compute][:constant_count] = 0
+      desc[:compute][:constants] = nil
+      setup_constants(desc[:compute], compute[:constants])
+
+      [desc, @pointers]
+    end
 
     def normalize_layout(layout)
       return nil if layout.nil? || layout == :auto || layout == "auto"

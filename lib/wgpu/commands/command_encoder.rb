@@ -70,7 +70,11 @@ module WGPU
       dst[:origin][:x] = destination.dig(:origin, :x) || 0
       dst[:origin][:y] = destination.dig(:origin, :y) || 0
       dst[:origin][:z] = destination.dig(:origin, :z) || 0
-      dst[:aspect] = destination[:aspect] || :all
+      dst[:aspect] = Native::EnumHelper.coerce(
+        Native::TextureAspect,
+        destination[:aspect] || :all,
+        name: "texture aspect"
+      )
 
       Native.wgpuCommandEncoderCopyBufferToTexture(@handle, src, dst, size)
     end
@@ -89,7 +93,11 @@ module WGPU
       src[:origin][:x] = source.dig(:origin, :x) || 0
       src[:origin][:y] = source.dig(:origin, :y) || 0
       src[:origin][:z] = source.dig(:origin, :z) || 0
-      src[:aspect] = source[:aspect] || :all
+      src[:aspect] = Native::EnumHelper.coerce(
+        Native::TextureAspect,
+        source[:aspect] || :all,
+        name: "texture aspect"
+      )
 
       dst = Native::ImageCopyBuffer.new
       dst[:layout][:offset] = destination[:offset] || 0
@@ -109,7 +117,11 @@ module WGPU
       src[:origin][:x] = source.dig(:origin, :x) || 0
       src[:origin][:y] = source.dig(:origin, :y) || 0
       src[:origin][:z] = source.dig(:origin, :z) || 0
-      src[:aspect] = source[:aspect] || :all
+      src[:aspect] = Native::EnumHelper.coerce(
+        Native::TextureAspect,
+        source[:aspect] || :all,
+        name: "source texture aspect"
+      )
 
       dst = Native::ImageCopyTexture.new
       dst[:texture] = destination[:texture].handle
@@ -117,7 +129,11 @@ module WGPU
       dst[:origin][:x] = destination.dig(:origin, :x) || 0
       dst[:origin][:y] = destination.dig(:origin, :y) || 0
       dst[:origin][:z] = destination.dig(:origin, :z) || 0
-      dst[:aspect] = destination[:aspect] || :all
+      dst[:aspect] = Native::EnumHelper.coerce(
+        Native::TextureAspect,
+        destination[:aspect] || :all,
+        name: "destination texture aspect"
+      )
 
       size = Native::Extent3D.new
       size[:width] = copy_size[:width] || copy_size[0]

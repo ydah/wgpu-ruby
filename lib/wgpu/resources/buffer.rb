@@ -11,23 +11,18 @@ module WGPU
       @mapped = mapped_at_creation
       @map_callbacks = []
 
-      desc = Native::BufferDescriptor.new
-      desc[:next_in_chain] = nil
-      if label
-        label_ptr = FFI::MemoryPointer.from_string(label)
-        desc[:label][:data] = label_ptr
-        desc[:label][:length] = label.bytesize
-      else
-        desc[:label][:data] = nil
-        desc[:label][:length] = 0
-      end
-      desc[:usage] = @usage
-      desc[:size] = size
-      desc[:mapped_at_creation] = mapped_at_creation ? 1 : 0
+      desc, keepalive = build_descriptor(
+        label:,
+        size:,
+        usage: @usage,
+        mapped_at_creation:
+      )
+      @descriptor_keepalive = keepalive
 
       device.push_error_scope(:validation)
       @handle = Native.wgpuDeviceCreateBuffer(device.handle, desc)
       error = device.pop_error_scope
+      @descriptor_keepalive = nil
 
       if @handle.null? || (error[:type] && error[:type] != :no_error)
         msg = error[:message] || "Failed to create buffer"
@@ -128,14 +123,20 @@ module WGPU
 
     private
 
+    def build_descriptor(label:, size:, usage:, mapped_at_creation:)
+      keepalive = []
+      desc = Native::BufferDescriptor.new
+      desc[:next_in_chain] = nil
+      DescriptorHelpers.set_label(desc, label, keepalive:)
+      desc[:usage] = usage
+      desc[:size] = size
+      desc[:mapped_at_creation] = mapped_at_creation ? 1 : 0
+      [desc, keepalive]
+    end
+
     def begin_map_request(mode, offset:, size:)
       size ||= @size - offset
-      mode_flag = case mode
-                  when :read then Native::MapMode[:read]
-                  when :write then Native::MapMode[:write]
-                  when Integer then mode
-                  else raise ArgumentError, "Invalid map mode: #{mode}"
-                  end
+      mode_flag = Native::EnumHelper.coerce(Native::MapMode, mode, name: "map mode")
 
       status_holder = { done: false, status: nil, message: nil }
       callback = FFI::Function.new(:void, [:uint32, Native::StringView.by_value, :pointer, :pointer]) do |status, message, _userdata1, _userdata2|
@@ -180,16 +181,7 @@ module WGPU
     end
 
     def normalize_usage(usage)
-      case usage
-      when Integer
-        usage
-      when Symbol
-        Native::BufferUsage[usage]
-      when Array
-        usage.reduce(0) { |acc, u| acc | Native::BufferUsage[u] }
-      else
-        raise ArgumentError, "Invalid usage type: #{usage.class}"
-      end
+      Native::EnumHelper.coerce_flags(Native::BufferUsage, usage, name: "buffer usage")
     end
 
     def data_to_pointer(data)

@@ -86,7 +86,7 @@ module WGPU
       config = Native::SurfaceConfiguration.new
       config[:next_in_chain] = nil
       config[:device] = device.handle
-      config[:format] = format
+      config[:format] = Native::EnumHelper.coerce(Native::TextureFormat, format, name: "surface format")
       config[:usage] = normalize_usage(usage)
       config[:width] = width
       config[:height] = height
@@ -95,15 +95,23 @@ module WGPU
         @view_formats_ptr = nil
         config[:view_formats] = nil
       else
-        format_values = view_formats.map do |vf|
-          vf.is_a?(Integer) ? vf : Native::TextureFormat[vf]
+        format_values = view_formats.map do |view_format|
+          Native::EnumHelper.coerce(Native::TextureFormat, view_format, name: "view format")
         end
         @view_formats_ptr = FFI::MemoryPointer.new(:uint32, format_values.size)
         @view_formats_ptr.write_array_of_uint32(format_values)
         config[:view_formats] = @view_formats_ptr
       end
-      config[:alpha_mode] = Native::CompositeAlphaMode[alpha_mode]
-      config[:present_mode] = Native::PresentMode[present_mode]
+      config[:alpha_mode] = Native::EnumHelper.coerce(
+        Native::CompositeAlphaMode,
+        alpha_mode,
+        name: "alpha mode"
+      )
+      config[:present_mode] = Native::EnumHelper.coerce(
+        Native::PresentMode,
+        present_mode,
+        name: "present mode"
+      )
 
       Native.wgpuSurfaceConfigure(@handle, config)
       @configured = true
@@ -206,16 +214,7 @@ module WGPU
     private
 
     def normalize_usage(usage)
-      case usage
-      when Integer
-        usage
-      when Symbol
-        Native::TextureUsage[usage]
-      when Array
-        usage.reduce(0) { |acc, u| acc | Native::TextureUsage[u] }
-      else
-        raise ArgumentError, "Invalid usage: #{usage}"
-      end
+      Native::EnumHelper.coerce_flags(Native::TextureUsage, usage, name: "surface usage")
     end
   end
 end

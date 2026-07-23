@@ -48,7 +48,11 @@ module WGPU
       dst[:origin][:x] = destination.dig(:origin, :x) || 0
       dst[:origin][:y] = destination.dig(:origin, :y) || 0
       dst[:origin][:z] = destination.dig(:origin, :z) || 0
-      dst[:aspect] = destination[:aspect] || :all
+      dst[:aspect] = Native::EnumHelper.coerce(
+        Native::TextureAspect,
+        destination[:aspect] || :all,
+        name: "texture aspect"
+      )
 
       extent = Native::Extent3D.new
       if size.is_a?(Array)

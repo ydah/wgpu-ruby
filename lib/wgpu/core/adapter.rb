@@ -28,10 +28,22 @@ module WGPU
 
       options = Native::RequestAdapterOptions.new
       options[:next_in_chain] = nil
-      options[:feature_level] = feature_level
-      options[:power_preference] = power_preference
+      options[:feature_level] = Native::EnumHelper.coerce(
+        Native::FeatureLevel,
+        feature_level,
+        name: "feature level"
+      )
+      options[:power_preference] = Native::EnumHelper.coerce(
+        Native::PowerPreference,
+        power_preference,
+        name: "power preference"
+      )
       options[:force_fallback_adapter] = force_fallback_adapter ? 1 : 0
-      options[:backend_type] = backend || :undefined
+      options[:backend_type] = Native::EnumHelper.coerce(
+        Native::BackendType,
+        backend || :undefined,
+        name: "backend type"
+      )
       options[:compatible_surface] = compatible_surface&.handle
 
       callback_info = Native::RequestAdapterCallbackInfo.new
