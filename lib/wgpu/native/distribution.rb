@@ -7,6 +7,10 @@ module WGPU
     module Distribution
       VERSION = "v27.0.4.0"
       RELEASE_BASE_URL = "https://github.com/gfx-rs/wgpu-native/releases/download/#{VERSION}"
+      UNIMPLEMENTED_CAPABILITIES = {
+        compilation_info: [VERSION].freeze,
+        buffer_map_state: [VERSION].freeze
+      }.freeze
 
       ARTIFACTS = [
         {
@@ -78,6 +82,10 @@ module WGPU
 
       def release_url(artifact)
         "#{RELEASE_BASE_URL}/#{artifact.fetch(:archive)}"
+      end
+
+      def capability_implemented?(name)
+        !UNIMPLEMENTED_CAPABILITIES.fetch(name, []).include?(VERSION)
       end
 
       def unsupported_platform_message(platform)

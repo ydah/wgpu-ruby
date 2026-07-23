@@ -15,11 +15,11 @@ module WGPU
       # implementation is a Rust panic stub. Calling it aborts the process, so
       # symbol presence alone cannot be used as a capability check.
       def compilation_info_available?
-        Distribution::VERSION != "v27.0.4.0"
+        Distribution.capability_implemented?(:compilation_info)
       end
 
       def buffer_map_state_available?
-        Distribution::VERSION != "v27.0.4.0"
+        Distribution.capability_implemented?(:buffer_map_state)
       end
 
       def logging_available?

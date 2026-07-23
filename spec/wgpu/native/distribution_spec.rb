@@ -4,6 +4,12 @@ require "tmpdir"
 require_relative "../../../lib/wgpu/native/distribution"
 
 RSpec.describe WGPU::Native::Distribution, :no_native do
+  it "keeps version-specific capability guards with the distribution metadata" do
+    expect(described_class.capability_implemented?(:compilation_info)).to be(false)
+    expect(described_class.capability_implemented?(:buffer_map_state)).to be(false)
+    expect(described_class.capability_implemented?(:pipeline_async)).to be(true)
+  end
+
   describe ".artifact_for" do
     {
       "x86_64-linux" => "wgpu-linux-x86_64-release.zip",
