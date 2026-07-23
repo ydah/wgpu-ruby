@@ -127,8 +127,15 @@ module WGPU
       Buffer.new(self, label: label, size: size, usage: usage, mapped_at_creation: mapped_at_creation)
     end
 
-    def create_shader_module(label: nil, code:, compilation_hints: [])
-      ShaderModule.new(self, label: label, code: code, compilation_hints: compilation_hints)
+    def create_shader_module(label: nil, code: nil, spirv: nil, compilation_hints: [], validate: false)
+      ShaderModule.new(
+        self,
+        label: label,
+        code: code,
+        spirv: spirv,
+        compilation_hints: compilation_hints,
+        validate: validate
+      )
     end
 
     def create_command_encoder(label: nil)

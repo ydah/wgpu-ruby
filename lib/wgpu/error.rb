@@ -43,4 +43,21 @@ module WGPU
       { type:, message: }
     end
   end
+
+  CompilationMessage = Data.define(
+    :type,
+    :message,
+    :line_num,
+    :line_pos,
+    :offset,
+    :length
+  ) do
+    alias line line_num
+    alias column line_pos
+
+    def to_s
+      location = line_num&.positive? ? "#{line_num}:#{line_pos}" : "unknown location"
+      "#{location}: #{type}: #{message}"
+    end
+  end
 end

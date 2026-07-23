@@ -4,12 +4,13 @@ module WGPU
   class ShaderModule
     attr_reader :handle
 
-    def initialize(device, label: nil, code:, compilation_hints: [])
+    def initialize(device, label: nil, code: nil, spirv: nil, compilation_hints: [], validate: false)
       @device = device
       @pointers = []
       @compilation_hints = compilation_hints
+      source = select_source(code, spirv)
 
-      source_ptr = build_shader_source(code, label: label)
+      source_ptr = build_shader_source(source, label: label)
 
       desc = Native::ShaderModuleDescriptor.new
       desc[:next_in_chain] = source_ptr
@@ -29,8 +30,10 @@ module WGPU
 
       if @handle.null? || (error[:type] && error[:type] != :no_error)
         msg = error[:message] || "Failed to create shader module"
-        raise ShaderError, msg
+        raise ShaderError, shader_error_message(msg, label)
       end
+
+      validate_compilation!(label) if validate
     end
 
     def get_compilation_info
@@ -55,14 +58,14 @@ module WGPU
                              else
                                ""
                              end
-              result_holder[:messages] << {
+              result_holder[:messages] << CompilationMessage.new(
                 type: msg[:type],
                 message: message_text,
                 line_num: msg[:line_num],
                 line_pos: msg[:line_pos],
                 offset: msg[:offset],
                 length: msg[:length]
-              }
+              )
             end
           end
         end
@@ -100,6 +103,28 @@ module WGPU
     end
 
     private
+
+    def select_source(code, spirv)
+      sources = [code, spirv].reject(&:nil?)
+      raise ArgumentError, "provide exactly one of code: or spirv:" unless sources.one?
+
+      sources.first
+    end
+
+    def validate_compilation!(label)
+      info = get_compilation_info
+      errors = info[:messages].select { |message| message.type == :error }
+      return if errors.empty?
+
+      details = errors.map(&:to_s).join("\n")
+      release
+      raise ShaderError, shader_error_message(details, label)
+    end
+
+    def shader_error_message(message, label)
+      context = label ? " for #{label.inspect}" : ""
+      "Shader compilation failed#{context}: #{message}"
+    end
 
     def build_shader_source(code, label:)
       if code.is_a?(String)
