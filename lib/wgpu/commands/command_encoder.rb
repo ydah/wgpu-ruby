@@ -7,6 +7,7 @@ module WGPU
     def initialize(device, label: nil)
       @device = device
       @finished = false
+      @active_pass = nil
 
       desc = Native::CommandEncoderDescriptor.new
       desc[:next_in_chain] = nil
@@ -24,13 +25,26 @@ module WGPU
     end
 
     def begin_compute_pass(label: nil, timestamp_writes: nil)
-      raise CommandError, "Encoder already finished" if @finished
-      ComputePass.new(self, label: label, timestamp_writes: timestamp_writes)
+      ensure_can_begin_pass!
+      pass = ComputePass.new(self, label: label, timestamp_writes: timestamp_writes)
+      @active_pass = pass
+      return pass unless block_given?
+
+      begin
+        yield pass
+      ensure
+        begin
+          pass.end_pass unless pass.ended?
+        ensure
+          pass.release
+          pass_ended(pass)
+        end
+      end
     end
 
     def begin_render_pass(color_attachments:, depth_stencil_attachment: nil, occlusion_query_set: nil, timestamp_writes: nil, max_draw_count: nil, label: nil)
-      raise CommandError, "Encoder already finished" if @finished
-      RenderPass.new(self,
+      ensure_can_begin_pass!
+      pass = RenderPass.new(self,
         color_attachments: color_attachments,
         depth_stencil_attachment: depth_stencil_attachment,
         occlusion_query_set: occlusion_query_set,
@@ -38,6 +52,19 @@ module WGPU
         max_draw_count: max_draw_count,
         label: label
       )
+      @active_pass = pass
+      return pass unless block_given?
+
+      begin
+        yield pass
+      ensure
+        begin
+          pass.end_pass unless pass.ended?
+        ensure
+          pass.release
+          pass_ended(pass)
+        end
+      end
     end
 
     def copy_buffer_to_buffer(source:, source_offset: 0, destination:, destination_offset: 0, size:)
@@ -191,6 +218,9 @@ module WGPU
 
     def finish(label: nil)
       raise CommandError, "Encoder already finished" if @finished
+      if @active_pass && !@active_pass.ended?
+        raise CommandError, "Cannot finish command encoder while a pass is active"
+      end
       @finished = true
 
       desc = nil
@@ -212,6 +242,17 @@ module WGPU
       return if @handle.null?
       Native.wgpuCommandEncoderRelease(@handle)
       @handle = FFI::Pointer::NULL
+    end
+
+    private
+
+    def ensure_can_begin_pass!
+      raise CommandError, "Encoder already finished" if @finished
+      raise CommandError, "A command pass is already active" if @active_pass && !@active_pass.ended?
+    end
+
+    def pass_ended(pass)
+      @active_pass = nil if @active_pass.equal?(pass)
     end
   end
 end

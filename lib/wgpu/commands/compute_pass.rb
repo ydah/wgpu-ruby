@@ -5,6 +5,8 @@ module WGPU
     attr_reader :handle
 
     def initialize(encoder, label: nil, timestamp_writes: nil)
+      @encoder = encoder
+      @ended = false
       desc = Native::ComputePassDescriptor.new
       desc[:next_in_chain] = nil
       if label
@@ -73,11 +75,19 @@ module WGPU
     end
 
     def end_pass
+      return if @ended
+
       Native.wgpuComputePassEncoderEnd(@handle)
+      @ended = true
+      @encoder.send(:pass_ended, self)
     end
 
     def end
       end_pass
+    end
+
+    def ended?
+      @ended
     end
 
     def release

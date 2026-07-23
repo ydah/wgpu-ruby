@@ -8,6 +8,7 @@ module WGPU
       @encoder = encoder
       @pointers = []
       @max_draw_count = max_draw_count
+      @ended = false
 
       desc = Native::RenderPassDescriptor.new
       desc[:next_in_chain] = nil
@@ -138,11 +139,19 @@ module WGPU
     end
 
     def end_pass
+      return if @ended
+
       Native.wgpuRenderPassEncoderEnd(@handle)
+      @ended = true
+      @encoder.send(:pass_ended, self)
     end
 
     def end
       end_pass
+    end
+
+    def ended?
+      @ended
     end
 
     def release
