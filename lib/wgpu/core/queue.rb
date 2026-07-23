@@ -75,14 +75,13 @@ module WGPU
       Native.wgpuQueueWriteTexture(@handle, dst, data_ptr, byte_size, layout, extent)
     end
 
-    def read_buffer(buffer, offset: 0, size: nil, device:)
+    def read_buffer(buffer, offset: 0, size: nil, device: nil, staging: nil)
+      device ||= @device
+      raise ArgumentError, "device is required when the queue has no owning device" unless device
+
       size ||= buffer.size - offset
-
-      staging = Buffer.new(device,
-        size: size,
-        usage: [:map_read, :copy_dst]
-      )
-
+      owns_staging = staging.nil?
+      staging ||= Buffer.new(device, size: size, usage: [:map_read, :copy_dst])
       encoder = CommandEncoder.new(device)
       encoder.copy_buffer_to_buffer(
         source: buffer,
@@ -95,25 +94,40 @@ module WGPU
       submit([command_buffer])
 
       staging.map_sync(:read)
-      data = staging.read_mapped_data
-      staging.unmap
-      staging.release
-
-      data
+      staging.read_mapped_data(size:)
+    ensure
+      staging&.unmap if staging && staging.map_state == :mapped
+      command_buffer&.release
+      encoder&.release
+      staging&.release if owns_staging
     end
 
-    def read_texture(source:, data_layout:, size:, device:)
-      height = size[:height] || size[1] || 1
-      depth = size[:depth_or_array_layers] || size[2] || 1
+    def read_texture(source:, data_layout:, size:, device: nil, staging: nil)
+      device ||= @device
+      raise ArgumentError, "device is required when the queue has no owning device" unless device
+
+      width, height, depth = texture_extent(size)
       bytes_per_row = data_layout[:bytes_per_row]
+      raise ArgumentError, "data_layout[:bytes_per_row] is required" unless bytes_per_row
+
+      DataTypes.validate_alignment!(
+        bytes_per_row,
+        TextureFormat::COPY_ALIGNMENT,
+        name: "bytes_per_row"
+      )
+      format = source[:format] || source[:texture].format
+      aspect = source[:aspect] || :all
+      minimum_bytes_per_row = TextureFormat.bytes_per_row(width, format, aspect:)
+      if bytes_per_row < minimum_bytes_per_row
+        raise ArgumentError,
+          "bytes_per_row must be at least #{minimum_bytes_per_row} for width #{width} and #{format.inspect}"
+      end
+
       rows_per_image = data_layout[:rows_per_image] || height
       buffer_size = bytes_per_row * rows_per_image * depth
 
-      staging = Buffer.new(device,
-        size: buffer_size,
-        usage: [:map_read, :copy_dst]
-      )
-
+      owns_staging = staging.nil?
+      staging ||= Buffer.new(device, size: buffer_size, usage: [:map_read, :copy_dst])
       encoder = CommandEncoder.new(device)
       encoder.copy_texture_to_buffer(
         source: source,
@@ -129,11 +143,12 @@ module WGPU
       submit([command_buffer])
 
       staging.map_sync(:read)
-      data = staging.read_mapped_data
-      staging.unmap
-      staging.release
-
-      data
+      staging.read_mapped_data(size: buffer_size)
+    ensure
+      staging&.unmap if staging && staging.map_state == :mapped
+      command_buffer&.release
+      encoder&.release
+      staging&.release if owns_staging
     end
 
     def on_submitted_work_done(device: nil)
@@ -176,6 +191,16 @@ module WGPU
       return if @handle.null?
       Native.wgpuQueueRelease(@handle)
       @handle = FFI::Pointer::NULL
+    end
+
+    private
+
+    def texture_extent(size)
+      if size.is_a?(Array)
+        [size.fetch(0), size[1] || 1, size[2] || 1]
+      else
+        [size.fetch(:width), size[:height] || 1, size[:depth_or_array_layers] || 1]
+      end
     end
 
   end
