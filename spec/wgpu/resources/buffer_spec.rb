@@ -83,6 +83,21 @@ RSpec.describe WGPU::Buffer, :gpu do
       buffer.unmap
       buffer.release
     end
+
+    it "retains callbacks across GC stress" do
+      buffers = Array.new(32) do
+        device.create_buffer(size: 64, usage: %i[map_read copy_dst])
+      end
+      tasks = buffers.map { |buffer| buffer.map_async(:read) }
+
+      3.times { GC.start }
+      expect(tasks.map(&:value)).to all(eq(true))
+    ensure
+      buffers&.each do |buffer|
+        buffer.unmap if buffer.map_state == :mapped
+        buffer.release
+      end
+    end
   end
 
   describe "#read_mapped_data" do

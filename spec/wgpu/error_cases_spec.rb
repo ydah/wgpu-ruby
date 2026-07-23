@@ -61,6 +61,45 @@ RSpec.describe "Error handling", :gpu do
         buffer.release
       end
     end
+
+    it "includes the operation and label for invalid usage" do
+      expect do
+        device.create_buffer(label: "bad upload", size: 64, usage: :not_a_usage)
+      end.to raise_error(WGPU::BufferError, /create buffer.*bad upload.*not_a_usage/)
+    end
+
+    it "keeps a user error scope intact around an internally scoped creation" do
+      device.push_error_scope(:validation)
+
+      expect do
+        device.create_buffer(
+          label: "too large",
+          size: device.limits.fetch(:max_buffer_size) + 4,
+          usage: :storage
+        )
+      end.to raise_error(WGPU::BufferError, /create buffer.*too large/)
+
+      expect(device.pop_error_scope.fetch(:type)).to eq(:no_error)
+    end
+  end
+
+  describe "device callbacks" do
+    it "dispatches uncaptured validation errors to the registered handler" do
+      errors = []
+      buffer = device.create_buffer(size: 4, usage: :copy_dst)
+      device.on_uncaptured_error { |error| errors << error }
+
+      device.queue.write_buffer(buffer, 8, "\0\0\0\0", type: :u8)
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 1
+      while errors.empty? && Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
+        instance.process_events
+      end
+
+      expect(errors.first).to be_a(WGPU::GPUError)
+      expect(errors.first.type).to eq(:validation)
+    ensure
+      buffer&.release
+    end
   end
 
   describe WGPU::ShaderModule do

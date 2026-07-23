@@ -7,7 +7,12 @@ module WGPU
     def initialize(device, label: nil, size:, usage:, mapped_at_creation: false)
       @device = device
       @size = size
-      @usage = normalize_usage(usage)
+      @usage =
+        begin
+          normalize_usage(usage)
+        rescue ArgumentError => e
+          raise BufferError, buffer_error_message(e.message, label)
+        end
       @mapped = mapped_at_creation
       @map_state = mapped_at_creation ? :mapped : :unmapped
 
@@ -26,7 +31,7 @@ module WGPU
 
       if @handle.null? || (error[:type] && error[:type] != :no_error)
         msg = error[:message] || "Failed to create buffer"
-        raise BufferError, msg
+        raise BufferError, buffer_error_message(msg, label)
       end
     end
 
@@ -215,6 +220,11 @@ module WGPU
 
     def normalize_usage(usage)
       Native::EnumHelper.coerce_flags(Native::BufferUsage, usage, name: "buffer usage")
+    end
+
+    def buffer_error_message(message, label)
+      context = label ? " #{label.inspect}" : ""
+      "create buffer#{context}: #{message}"
     end
 
     def validate_map_range!(offset, size)
