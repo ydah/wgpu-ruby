@@ -65,7 +65,10 @@ RSpec.describe "Error handling", :gpu do
     it "includes the operation and label for invalid usage" do
       expect do
         device.create_buffer(label: "bad upload", size: 64, usage: :not_a_usage)
-      end.to raise_error(WGPU::BufferError, /create buffer.*bad upload.*not_a_usage/)
+      end.to raise_error(
+        ArgumentError,
+        /create buffer.*bad upload.*not_a_usage.*Valid values:.*:copy_dst.*:storage/
+      )
     end
 
     it "keeps a user error scope intact around an internally scoped creation" do

@@ -1,6 +1,16 @@
 # frozen_string_literal: true
 
 RSpec.describe WGPU::NativeResource, :skip_gpu_check do
+  native_wrapper_classes = [
+    WGPU::Instance, WGPU::Adapter, WGPU::Device, WGPU::Queue,
+    WGPU::Surface, WGPU::CanvasContext, WGPU::Buffer, WGPU::Texture,
+    WGPU::TextureView, WGPU::Sampler, WGPU::QuerySet, WGPU::ShaderModule,
+    WGPU::BindGroupLayout, WGPU::BindGroup, WGPU::PipelineLayout,
+    WGPU::ComputePipeline, WGPU::RenderPipeline, WGPU::CommandEncoder,
+    WGPU::CommandBuffer, WGPU::ComputePass, WGPU::RenderPass,
+    WGPU::RenderBundleEncoder, WGPU::RenderBundle
+  ].freeze
+
   let(:resource_class) do
     Class.new do
       attr_reader :handle
@@ -23,17 +33,34 @@ RSpec.describe WGPU::NativeResource, :skip_gpu_check do
   end
 
   it "is included by every native wrapper" do
-    resource_classes = [
-      WGPU::Instance, WGPU::Adapter, WGPU::Device, WGPU::Queue,
-      WGPU::Surface, WGPU::CanvasContext, WGPU::Buffer, WGPU::Texture,
-      WGPU::TextureView, WGPU::Sampler, WGPU::QuerySet, WGPU::ShaderModule,
-      WGPU::BindGroupLayout, WGPU::BindGroup, WGPU::PipelineLayout,
-      WGPU::ComputePipeline, WGPU::RenderPipeline, WGPU::CommandEncoder,
-      WGPU::CommandBuffer, WGPU::ComputePass, WGPU::RenderPass,
-      WGPU::RenderBundleEncoder, WGPU::RenderBundle
-    ]
+    expect(native_wrapper_classes.size).to eq(23)
+    expect(native_wrapper_classes).to all(be < described_class)
+  end
 
-    expect(resource_classes).to all(be < described_class)
+  it "guards every public wrapper method and rejects calls after release" do
+    exemptions = described_class::GUARDED_METHOD_EXEMPTIONS
+
+    native_wrapper_classes.each do |wrapper_class|
+      methods_to_guard = wrapper_class.public_instance_methods(false) - exemptions
+      lifecycle_index = wrapper_class.ancestors.index(WGPU::NativeResource::Lifecycle)
+      guard_module = wrapper_class.ancestors.fetch(lifecycle_index + 1)
+
+      unless methods_to_guard.empty?
+        expect(guard_module.public_instance_methods(false)).to include(*methods_to_guard)
+      end
+
+      resource = wrapper_class.allocate
+      resource.instance_variable_set(:@released, true)
+      resource.instance_variable_set(:@label, "released acceptance")
+
+      expect { resource.use { :unused } }.to raise_error(WGPU::ResourceError, /released/)
+      methods_to_guard.each do |method_name|
+        expect { resource.public_send(method_name) }.to raise_error(
+          WGPU::ResourceError,
+          /released acceptance.*released/
+        ), "#{wrapper_class}##{method_name} bypassed the release guard"
+      end
+    end
   end
 
   it "reports released state and guards public methods" do

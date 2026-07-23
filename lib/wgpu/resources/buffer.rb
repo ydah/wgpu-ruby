@@ -11,7 +11,7 @@ module WGPU
         begin
           normalize_usage(usage)
         rescue ArgumentError => e
-          raise BufferError, buffer_error_message(e.message, label)
+          raise ArgumentError, buffer_error_message(e.message, label)
         end
       @mapped = mapped_at_creation
       @map_state = mapped_at_creation ? :mapped : :unmapped
@@ -108,26 +108,62 @@ module WGPU
       target.put_bytes(0, ptr.read_bytes(byte_size))
     end
 
+    # Reads mapped bytes as 32-bit floating-point values.
+    #
+    # @param offset [Integer] byte offset in the buffer
+    # @param count [Integer, nil] values to read; defaults to the remaining range
+    # @return [Array<Float>] decoded values
+    # @raise [BufferError] if the buffer is not mapped
     def read_mapped_floats(offset: 0, count: nil)
       read_mapped_values(type: :f32, offset:, count:)
     end
 
+    # Reads mapped bytes as unsigned 32-bit integers.
+    #
+    # @param offset [Integer] byte offset in the buffer
+    # @param count [Integer, nil] values to read; defaults to the remaining range
+    # @return [Array<Integer>] decoded values
+    # @raise [BufferError] if the buffer is not mapped
     def read_mapped_uint32s(offset: 0, count: nil)
       read_mapped_values(type: :u32, offset:, count:)
     end
 
+    # Reads mapped bytes as signed 32-bit integers.
+    #
+    # @param offset [Integer] byte offset in the buffer
+    # @param count [Integer, nil] values to read; defaults to the remaining range
+    # @return [Array<Integer>] decoded values
+    # @raise [BufferError] if the buffer is not mapped
     def read_mapped_int32s(offset: 0, count: nil)
       read_mapped_values(type: :i32, offset:, count:)
     end
 
+    # Reads mapped bytes as 64-bit floating-point values.
+    #
+    # @param offset [Integer] byte offset in the buffer
+    # @param count [Integer, nil] values to read; defaults to the remaining range
+    # @return [Array<Float>] decoded values
+    # @raise [BufferError] if the buffer is not mapped
     def read_mapped_float64s(offset: 0, count: nil)
       read_mapped_values(type: :f64, offset:, count:)
     end
 
+    # Reads mapped bytes as unsigned 16-bit integers.
+    #
+    # @param offset [Integer] byte offset in the buffer
+    # @param count [Integer, nil] values to read; defaults to the remaining range
+    # @return [Array<Integer>] decoded values
+    # @raise [BufferError] if the buffer is not mapped
     def read_mapped_uint16s(offset: 0, count: nil)
       read_mapped_values(type: :u16, offset:, count:)
     end
 
+    # Reads mapped bytes as unsigned 8-bit integers.
+    #
+    # @param offset [Integer] byte offset in the buffer
+    # @param count [Integer, nil] values to read; defaults to the remaining range
+    # @return [Array<Integer>] decoded values
+    # @raise [BufferError] if the buffer is not mapped
     def read_mapped_uint8s(offset: 0, count: nil)
       read_mapped_values(type: :u8, offset:, count:)
     end
@@ -148,6 +184,10 @@ module WGPU
       Native.wgpuBufferDestroy(@handle)
     end
 
+    # Releases the native buffer handle.
+    #
+    # Calling this method more than once has no effect.
+    # @return [void]
     def release
       return if @handle.null?
       Native.wgpuBufferRelease(@handle)
@@ -239,50 +279,104 @@ module WGPU
       @size = size
     end
 
+    # Reads 32-bit floating-point values from the mapped range.
+    #
+    # @param count [Integer, nil] values to read; defaults to the full range
+    # @return [Array<Float>] decoded values
     def read_floats(count = nil)
       read(type: :f32, count:)
     end
 
+    # Writes 32-bit floating-point values into the mapped range.
+    #
+    # @param data [Array<Numeric>] values to write
+    # @return [void]
+    # @raise [ArgumentError] if the data exceeds the mapped range
     def write_floats(data)
       write(data, type: :f32)
     end
 
+    # Reads unsigned 32-bit integers from the mapped range.
+    #
+    # @param count [Integer, nil] values to read; defaults to the full range
+    # @return [Array<Integer>] decoded values
     def read_uint32s(count = nil)
       read(type: :u32, count:)
     end
 
+    # Writes unsigned 32-bit integers into the mapped range.
+    #
+    # @param data [Array<Integer>] values to write
+    # @return [void]
+    # @raise [ArgumentError] if the data exceeds the mapped range
     def write_uint32s(data)
       write(data, type: :u32)
     end
 
+    # Reads signed 32-bit integers from the mapped range.
+    #
+    # @param count [Integer, nil] values to read; defaults to the full range
+    # @return [Array<Integer>] decoded values
     def read_int32s(count = nil)
       read(type: :i32, count:)
     end
 
+    # Writes signed 32-bit integers into the mapped range.
+    #
+    # @param data [Array<Integer>] values to write
+    # @return [void]
+    # @raise [ArgumentError] if the data exceeds the mapped range
     def write_int32s(data)
       write(data, type: :i32)
     end
 
+    # Reads 64-bit floating-point values from the mapped range.
+    #
+    # @param count [Integer, nil] values to read; defaults to the full range
+    # @return [Array<Float>] decoded values
     def read_float64s(count = nil)
       read(type: :f64, count:)
     end
 
+    # Writes 64-bit floating-point values into the mapped range.
+    #
+    # @param data [Array<Numeric>] values to write
+    # @return [void]
+    # @raise [ArgumentError] if the data exceeds the mapped range
     def write_float64s(data)
       write(data, type: :f64)
     end
 
+    # Reads unsigned 16-bit integers from the mapped range.
+    #
+    # @param count [Integer, nil] values to read; defaults to the full range
+    # @return [Array<Integer>] decoded values
     def read_uint16s(count = nil)
       read(type: :u16, count:)
     end
 
+    # Writes unsigned 16-bit integers into the mapped range.
+    #
+    # @param data [Array<Integer>] values to write
+    # @return [void]
+    # @raise [ArgumentError] if the data exceeds the mapped range
     def write_uint16s(data)
       write(data, type: :u16)
     end
 
+    # Reads unsigned 8-bit integers from the mapped range.
+    #
+    # @param count [Integer, nil] values to read; defaults to the full range
+    # @return [Array<Integer>] decoded values
     def read_uint8s(count = nil)
       read(type: :u8, count:)
     end
 
+    # Writes unsigned 8-bit integers into the mapped range.
+    #
+    # @param data [Array<Integer>] values to write
+    # @return [void]
+    # @raise [ArgumentError] if the data exceeds the mapped range
     def write_uint8s(data)
       write(data, type: :u8)
     end
