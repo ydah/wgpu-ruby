@@ -12,6 +12,8 @@ module WGPU
   def self.log_level: () -> Symbol
   def self.log_level=: (enum_value) -> enum_value
   def self.on_log: () { (Symbol, String) -> void } -> singleton(WGPU)
+  def self.debug_leaks: () -> bool
+  def self.debug_leaks=: (bool) -> bool
 
   class Error < StandardError
   end
@@ -131,6 +133,7 @@ module WGPU
     def self.block_dimensions: (enum_value) -> [Integer, Integer]
     def self.bytes_per_row: (Integer, enum_value, ?aspect: Symbol) -> Integer
     def self.aligned_bytes_per_row: (Integer, enum_value, ?aspect: Symbol, ?alignment: Integer) -> Integer
+    def self.block_info: (enum_value, ?aspect: Symbol) -> [Integer, Integer, Integer]
   end
 
   class Instance
@@ -267,7 +270,7 @@ module WGPU
     include NativeResource
     attr_reader handle: untyped
     attr_reader surface_status: Symbol?
-    def self.from_handle: (untyped, ?surface_status: Symbol?) -> Texture
+    def self.from_handle: (untyped, ?surface_status: Symbol?, ?device: Device?) -> Texture
     def create_view: (**untyped) -> TextureView
     def width: () -> Integer
     def height: () -> Integer
@@ -285,7 +288,7 @@ module WGPU
     include NativeResource
     attr_reader handle: untyped
     attr_reader texture: Texture?
-    def self.from_handle: (untyped) -> TextureView
+    def self.from_handle: (untyped, ?device: Device?) -> TextureView
     def size: () -> Hash[Symbol, Integer]?
   end
 
@@ -312,6 +315,7 @@ module WGPU
   class BindGroupLayout
     include NativeResource
     attr_reader handle: untyped
+    def self.from_handle: (untyped, ?device: Device?) -> BindGroupLayout
   end
 
   class BindGroup
