@@ -42,7 +42,7 @@ jobs:
           EXPECTED_ARCHIVE: ${{ matrix.archive }}
         run: |
           bundle exec rake wgpu:install
-          bundle exec ruby -Ilib -e 'require "wgpu"; actual = WGPU::Native::Distribution.artifact_for.fetch(:archive); abort "expected #{ENV.fetch("EXPECTED_ARCHIVE")}, got #{actual}" unless actual == ENV.fetch("EXPECTED_ARCHIVE")'
+          bundle exec ruby -Ilib script/verify_native_artifact.rb
 
   test:
     name: Ruby ${{ matrix.ruby }} / ${{ matrix.os }}
@@ -130,7 +130,9 @@ jobs:
           bundle exec gem build wgpu.gemspec
           gem install --local --install-dir tmp/no-sdl-gems --ignore-dependencies wgpu-*.gem
       - name: Require the installed core without loading SDL3
-        run: GEM_PATH="tmp/no-sdl-gems:$(ruby -e 'puts Gem.path.join(":")')" ruby -e 'require "wgpu"; abort "SDL3 unexpectedly loaded" if defined?(SDL3)'
+        run: |
+          bundle_gem_path="$(bundle exec ruby -e 'puts Gem.path.join(":")')"
+          GEM_PATH="tmp/no-sdl-gems:${bundle_gem_path}" ruby -e 'require "wgpu"; abort "SDL3 unexpectedly loaded" if defined?(SDL3)'
       - name: Run compute examples without SDL3
         run: |
           for example in examples/0[1-6]_*.rb; do
