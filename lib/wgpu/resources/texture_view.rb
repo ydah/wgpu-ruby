@@ -48,10 +48,12 @@ module WGPU
     # Wraps a native texture view handle owned by the caller.
     #
     # @param handle [FFI::Pointer] native texture view handle
+    # @param device [Device, nil] device whose callbacks the view may use
     # @return [TextureView] adopted wrapper without a parent texture
-    def self.from_handle(handle)
+    def self.from_handle(handle, device: nil)
       view = adopt_native_handle(handle)
       view.instance_variable_set(:@texture, nil)
+      view.send(:attach_device_callback_lifetime, device)
       view
     end
 

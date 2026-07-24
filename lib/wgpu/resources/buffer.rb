@@ -21,6 +21,8 @@ module WGPU
         end
       @mapped = mapped_at_creation
       @map_state = mapped_at_creation ? :mapped : :unmapped
+      @map_generation = 0
+      @map_state_mutex = Mutex.new
 
       desc, keepalive = build_descriptor(
         label:,
@@ -77,8 +79,11 @@ module WGPU
     # @return [void]
     def unmap
       Native.wgpuBufferUnmap(@handle)
-      @mapped = false
-      @map_state = :unmapped
+      map_state_mutex.synchronize do
+        @map_generation = current_map_generation + 1
+        @mapped = false
+        @map_state = :unmapped
+      end
     end
 
     # Maps a range and waits for native completion.
@@ -87,19 +92,21 @@ module WGPU
     # @return [Boolean] true when mapped
     # @raise [BufferError] if mapping fails
     def map_sync(mode, offset: 0, size: nil, timeout: nil)
-      status_holder, _callback_token, future = begin_map_request(mode, offset: offset, size: size)
+      status_holder, _callback_token, future, generation =
+        begin_map_request(mode, offset: offset, size: size)
       wait_for_map(status_holder, future, timeout:)
-      finalize_map(status_holder)
+      finalize_map(status_holder, generation)
     end
 
     # Maps a range on a background task.
     # @param mode [Symbol, Integer] map access mode
     # @return [AsyncTask] task yielding true when mapped
     def map_async(mode, offset: 0, size: nil)
-      status_holder, _callback_token, future = begin_map_request(mode, offset: offset, size: size)
+      status_holder, _callback_token, future, generation =
+        begin_map_request(mode, offset: offset, size: size)
       AsyncTask.new do
         wait_for_map(status_holder, future)
-        finalize_map(status_holder)
+        finalize_map(status_holder, generation)
       end
     end
 
@@ -213,15 +220,16 @@ module WGPU
     # Returns the current mapping state.
     # @return [Symbol]
     def map_state
-      return @map_state unless Native.buffer_map_state_available?
+      return map_state_mutex.synchronize { @map_state } unless Native.buffer_map_state_available?
 
-      Native.wgpuBufferGetMapState(@handle) || @map_state
+      Native.wgpuBufferGetMapState(@handle) || map_state_mutex.synchronize { @map_state }
     end
 
     # Destroys the buffer's storage.
     # @return [void]
     def destroy
       Native.wgpuBufferDestroy(@handle)
+      invalidate_map_state
     end
 
     # Releases the native buffer handle.
@@ -232,6 +240,7 @@ module WGPU
       return if @handle.null?
       Native.wgpuBufferRelease(@handle)
       @handle = FFI::Pointer::NULL
+      invalidate_map_state
     end
 
     private
@@ -253,6 +262,12 @@ module WGPU
       mode_flag = Native::EnumHelper.coerce(Native::MapMode, mode, name: "map mode")
 
       status_holder = { done: false, status: nil, message: nil }
+      generation = map_state_mutex.synchronize do
+        @map_generation = current_map_generation + 1
+        @map_state = :pending
+        @map_generation
+      end
+      callback_lifetime_release = device_callback_lifetime_lease
       callback_token = nil
       callback = FFI::Function.new(:void, [:uint32, Native::StringView.by_value, :pointer, :pointer]) do |status, message, _userdata1, _userdata2|
         begin
@@ -260,9 +275,16 @@ module WGPU
           if message[:data] && !message[:data].null? && message[:length] > 0
             status_holder[:message] = message[:data].read_string(message[:length])
           end
+          map_state_mutex.synchronize do
+            if generation == current_map_generation && !@handle.null?
+              @mapped = status_holder[:status] == :success
+              @map_state = @mapped ? :mapped : :unmapped
+            end
+          end
           status_holder[:done] = true
         ensure
           CallbackKeepalive.release(self, callback_token)
+          callback_lifetime_release.call
         end
       end
       callback_token = CallbackKeepalive.retain(self, callback)
@@ -279,11 +301,12 @@ module WGPU
           Native.wgpuBufferMapAsync(@handle, mode_flag, offset, size, callback_info)
         rescue StandardError
           CallbackKeepalive.release(self, callback_token)
+          callback_lifetime_release.call
+          invalidate_map_state(generation)
           raise
         end
-      @map_state = :pending
 
-      [status_holder, callback_token, future]
+      [status_holder, callback_token, future, generation]
     end
 
     def wait_for_map(status_holder, future, timeout: nil)
@@ -296,17 +319,39 @@ module WGPU
       )
     end
 
-    def finalize_map(status_holder)
+    def finalize_map(status_holder, generation)
       if status_holder[:status] == :success
-        @mapped = true
-        @map_state = :mapped
+        map_state_mutex.synchronize do
+          if generation == current_map_generation && !@handle.null?
+            @mapped = true
+            @map_state = :mapped
+          end
+        end
         true
       else
-        @map_state = :unmapped
+        invalidate_map_state(generation)
         detail = status_holder[:message]
         base = "Failed to map buffer: #{status_holder[:status]}"
         raise BufferError, detail && !detail.empty? ? "#{base} (#{detail})" : base
       end
+    end
+
+    def invalidate_map_state(generation = nil)
+      map_state_mutex.synchronize do
+        return if generation && generation != current_map_generation
+
+        @map_generation = current_map_generation + 1
+        @mapped = false
+        @map_state = :unmapped
+      end
+    end
+
+    def current_map_generation
+      @map_generation ||= 0
+    end
+
+    def map_state_mutex
+      @map_state_mutex ||= Mutex.new
     end
 
     def normalize_usage(usage)

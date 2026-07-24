@@ -288,7 +288,7 @@ module WGPU
       buffer_handle = Native.wgpuCommandEncoderFinish(@handle, desc)
       raise CommandError, "Failed to finish command encoder" if buffer_handle.null?
 
-      CommandBuffer.new(buffer_handle)
+      CommandBuffer.new(buffer_handle, device: @device)
     end
 
     # Releases the native command encoder handle.

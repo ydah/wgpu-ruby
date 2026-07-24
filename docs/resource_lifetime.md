@@ -17,6 +17,10 @@ Ruby finalizers.
 - Every native wrapper supports `use { |resource| ... }`. It returns the block
   result and releases the wrapper in `ensure`, including when the block raises.
   This is Ruby convenience API rather than a WebGPU operation.
+- Device callbacks share a lifetime across the device and every derived native
+  wrapper. Releasing a device before a child does not free callback closures
+  that wgpu-native may still reach; they are freed after the final child
+  wrapper and pending callback operation complete.
 
 For short-lived resources:
 

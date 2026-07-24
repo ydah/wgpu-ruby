@@ -29,6 +29,11 @@ Synchronous adapter/device requests, `Buffer#map_sync`,
 `timeout:` in seconds. The default `nil` preserves the prior unbounded wait.
 Expiry raises `WGPU::TimeoutError`.
 
+`Device.request` can time out only when its adapter is associated with an
+`Instance`. When adopting a native adapter, pass `instance:` to
+`Adapter.from_handle`; without an instance there is no safe event-progress
+boundary for cleaning up a device that completes after timeout.
+
 `*_async` methods return `WGPU::AsyncTask`, a convenience wrapper backed by a
 Ruby Thread. Concurrent operations on the same WebGPU object are not
 guaranteed safe. Prefer synchronous operations or external serialization when

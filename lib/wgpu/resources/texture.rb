@@ -40,11 +40,13 @@ module WGPU
     #
     # @param handle [FFI::Pointer] native texture handle
     # @param surface_status [Symbol, nil] acquisition status associated with the texture
+    # @param device [Device, nil] device whose callbacks the texture may use
     # @return [Texture] adopted wrapper
-    def self.from_handle(handle, surface_status: nil)
+    def self.from_handle(handle, surface_status: nil, device: nil)
       texture = adopt_native_handle(handle)
-      texture.instance_variable_set(:@device, nil)
+      texture.instance_variable_set(:@device, device)
       texture.instance_variable_set(:@surface_status, surface_status)
+      texture.send(:attach_device_callback_lifetime, device)
       texture
     end
 

@@ -39,7 +39,7 @@ module WGPU
     def get_bind_group_layout(index)
       handle = Native.wgpuRenderPipelineGetBindGroupLayout(@handle, index)
       raise PipelineError, "Failed to get bind group layout at index #{index}" if handle.null?
-      BindGroupLayout.from_handle(handle)
+      BindGroupLayout.from_handle(handle, device: @device)
     end
 
     # Releases the native render pipeline handle.

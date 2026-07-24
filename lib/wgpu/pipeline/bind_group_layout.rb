@@ -7,10 +7,12 @@ module WGPU
     # Wraps a native bind group layout handle owned by the caller.
     #
     # @param handle [FFI::Pointer] native bind group layout handle
+    # @param device [Device, nil] device whose callbacks the layout may use
     # @return [BindGroupLayout] adopted wrapper
-    def self.from_handle(handle)
+    def self.from_handle(handle, device: nil)
       layout = adopt_native_handle(handle)
-      layout.instance_variable_set(:@device, nil)
+      layout.instance_variable_set(:@device, device)
+      layout.send(:attach_device_callback_lifetime, device)
       layout
     end
 

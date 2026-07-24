@@ -6,8 +6,10 @@ module WGPU
 
     # Wraps a reusable native render bundle.
     # @param handle [FFI::Pointer] native render bundle handle
-    def initialize(handle)
+    # @param device [Device, nil] device whose callbacks the render bundle may use
+    def initialize(handle, device: nil)
       @handle = handle
+      @device = device
     end
 
     # Releases the native render bundle handle.

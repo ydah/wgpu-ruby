@@ -131,8 +131,10 @@ module WGPU
       )
 
       Native.wgpuSurfaceConfigure(@handle, config)
+      release_device_callback_lifetime
       @configured = true
       @device = device
+      attach_device_callback_lifetime(device)
       @config = {
         device: device,
         format: format,
@@ -149,7 +151,9 @@ module WGPU
     # @return [void]
     def unconfigure
       Native.wgpuSurfaceUnconfigure(@handle)
+      release_device_callback_lifetime
       @configured = false
+      @device = nil
       @config = nil
     end
 
@@ -173,7 +177,7 @@ module WGPU
         raise SurfaceError, "Surface returned null texture"
       end
 
-      Texture.from_handle(texture_ptr, surface_status: status)
+      Texture.from_handle(texture_ptr, surface_status: status, device: @device)
     end
 
     # Acquires the texture for the current presentation frame.

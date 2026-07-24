@@ -192,7 +192,7 @@ module WGPU
       bundle_handle = Native.wgpuRenderBundleEncoderFinish(@handle, desc)
       raise RenderBundleError, "Failed to finish render bundle encoder" if bundle_handle.null?
 
-      RenderBundle.new(bundle_handle)
+      RenderBundle.new(bundle_handle, device: @device)
     end
 
     # Releases the native render bundle encoder handle.

@@ -210,6 +210,7 @@ module WGPU
       instance = device&.adapter&.instance
       status_holder = { done: false, status: nil }
 
+      callback_lifetime_release = device_callback_lifetime_lease
       callback_token = nil
       callback = FFI::Function.new(
         :void, [:uint32, :pointer, :pointer]
@@ -219,6 +220,7 @@ module WGPU
           status_holder[:done] = true
         ensure
           CallbackKeepalive.release(self, callback_token)
+          callback_lifetime_release.call
         end
       end
 
@@ -235,6 +237,7 @@ module WGPU
           Native.wgpuQueueOnSubmittedWorkDone(@handle, callback_info)
         rescue StandardError
           CallbackKeepalive.release(self, callback_token)
+          callback_lifetime_release.call
           raise
         end
       AsyncWaiter.wait(

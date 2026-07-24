@@ -27,6 +27,11 @@ Pass `timeout:` to adapter/device requests, `Buffer#map_sync`,
 `WGPU::TimeoutError`. In an event loop, regularly call
 `Instance#process_events` or `Device#poll`.
 
+For a native adapter wrapped with `Adapter.from_handle`, provide its
+`instance:` before using `Device.request(timeout: ...)`. Timeout is rejected
+without that instance because a late native completion cannot be cleaned up
+safely.
+
 ## Texture readback rejects bytes_per_row
 
 Buffer/texture copy rows must be 256-byte aligned. Calculate the value with

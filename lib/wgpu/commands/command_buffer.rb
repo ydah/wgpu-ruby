@@ -6,8 +6,10 @@ module WGPU
 
     # Wraps an encoded native command buffer.
     # @param handle [FFI::Pointer] native command buffer handle
-    def initialize(handle)
+    # @param device [Device, nil] device whose callbacks the command buffer may use
+    def initialize(handle, device: nil)
       @handle = handle
+      @device = device
       @submitted = false
     end
 

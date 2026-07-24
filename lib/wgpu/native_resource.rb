@@ -64,6 +64,44 @@ module WGPU
 
   at_exit { LeakTracker.warn_remaining if WGPU.debug_leaks }
 
+  class DeviceCallbackLifetime
+    # Creates a shared lifetime that runs cleanup after its final owner releases.
+    # @yield cleanup invoked exactly once
+    def initialize(&cleanup)
+      @cleanup = cleanup
+      @references = 0
+      @completed = false
+      @mutex = Mutex.new
+    end
+
+    # Adds an owning native wrapper.
+    # @return [void]
+    def retain
+      @mutex.synchronize do
+        raise ResourceError, "device callback lifetime is already complete" if @completed
+
+        @references += 1
+      end
+    end
+
+    # Removes an owning native wrapper and cleans up after the final owner.
+    # @return [void]
+    def release
+      cleanup = @mutex.synchronize do
+        return if @completed
+
+        @references -= 1
+        raise ResourceError, "device callback lifetime reference underflow" if @references.negative?
+        next unless @references.zero?
+
+        @completed = true
+        @cleanup
+      end
+      cleanup&.call
+    end
+  end
+  private_constant :DeviceCallbackLifetime
+
   module CallbackKeepalive
     INITIALIZATION_MUTEX = Mutex.new
     RETAINED_MUTEX = Mutex.new
@@ -95,6 +133,25 @@ module WGPU
       mutex, callbacks = storage_for(owner)
       mutex.synchronize { callbacks.delete(token) }
       RETAINED_MUTEX.synchronize { RETAINED_CALLBACKS.delete(token) }
+    end
+
+    # Moves a retained callback token to another owner without unrooting it.
+    #
+    # @param from [Object] current registry owner
+    # @param to [Object] new registry owner
+    # @param token [Object] token returned by {.retain}
+    # @return [Boolean] whether the live token was transferred
+    def transfer(from, to, token)
+      return false unless token
+
+      callback = RETAINED_MUTEX.synchronize { RETAINED_CALLBACKS[token] }
+      return false unless callback
+
+      from_mutex, from_callbacks = storage_for(from)
+      to_mutex, to_callbacks = storage_for(to)
+      from_mutex.synchronize { from_callbacks.delete(token) }
+      to_mutex.synchronize { to_callbacks[token] = callback }
+      true
     end
 
     # Returns the number of callbacks retained for an owner.
@@ -147,6 +204,7 @@ module WGPU
       def initialize(*args, **kwargs, &block)
         super
         initialize_native_resource(label: kwargs.fetch(:label, UNSET))
+        attach_device_callback_lifetime_from_parent
       end
 
       # Releases a resource once and unregisters it from leak tracking.
@@ -156,6 +214,7 @@ module WGPU
         return if released?
 
         result = super
+        release_device_callback_lifetime
         @released = true
         LeakTracker.unregister(self)
         result
@@ -224,6 +283,54 @@ module WGPU
     end
 
     private
+
+    def attach_device_callback_lifetime(owner)
+      lifetime = owner&.instance_variable_get(:@device_callback_lifetime)
+      return self unless lifetime
+
+      lifetime.retain
+      @device_callback_lifetime = lifetime
+      @device_callback_lifetime_retained = true
+      self
+    end
+
+    def attach_device_callback_lifetime_from_parent
+      return if @device_callback_lifetime_retained
+
+      if @device_callback_lifetime
+        @device_callback_lifetime.retain
+        @device_callback_lifetime_retained = true
+        return
+      end
+
+      owner = @device || @encoder || @texture
+      attach_device_callback_lifetime(owner)
+    end
+
+    def release_device_callback_lifetime
+      return unless @device_callback_lifetime_retained
+
+      @device_callback_lifetime_retained = false
+      @device_callback_lifetime.release
+    end
+
+    def device_callback_lifetime_lease
+      lifetime = @device_callback_lifetime
+      return proc {} unless lifetime
+
+      lifetime.retain
+      released = false
+      mutex = Mutex.new
+      proc do
+        should_release = mutex.synchronize do
+          next false if released
+
+          released = true
+          true
+        end
+        lifetime.release if should_release
+      end
+    end
 
     def ensure_not_released!
       return unless released?

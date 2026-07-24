@@ -16,7 +16,14 @@ module WGPU
     # @return [Device] requested device
     # @raise [DeviceError] if device creation fails
     # @raise [TimeoutError] if the request exceeds +timeout+
+    # @raise [ArgumentError] if +timeout+ is used without an instance-backed adapter
     def self.request(adapter, label: nil, required_features: [], required_limits: nil, timeout: nil)
+      if timeout && !adapter.instance
+        raise ArgumentError,
+          "Device.request timeout requires an instance-backed adapter; " \
+          "pass instance: to Adapter.from_handle"
+      end
+
       device_ptr = FFI::MemoryPointer.new(:pointer)
       status_holder = {
         done: false,
@@ -33,8 +40,6 @@ module WGPU
       }
 
       callback_token = nil
-      device_lost_token = nil
-      uncaptured_error_token = nil
       callback = FFI::Function.new(
         :void, [:uint32, :pointer, Native::StringView.by_value, :pointer, :pointer]
       ) do |status, device, message, _userdata1, _userdata2|
@@ -53,9 +58,11 @@ module WGPU
             end
           end
           if cleanup_abandoned
-            Native.wgpuDeviceRelease(device) if device && !device.null?
-            CallbackKeepalive.release(adapter, device_lost_token)
-            CallbackKeepalive.release(adapter, uncaptured_error_token)
+            if status_holder[:value] == :success && device && !device.null?
+              release_abandoned_device(device, device_callback_state)
+            else
+              release_device_callback_keepalive(device_callback_state)
+            end
           end
         ensure
           CallbackKeepalive.release(adapter, callback_token)
@@ -119,14 +126,18 @@ module WGPU
 
       device_lost_token = CallbackKeepalive.retain(adapter, device_lost_callback)
       uncaptured_error_token = CallbackKeepalive.retain(adapter, uncaptured_error_callback)
+      configure_device_callback_keepalive(
+        device_callback_state,
+        owner: adapter,
+        tokens: [device_lost_token, uncaptured_error_token]
+      )
       callback_token = CallbackKeepalive.retain(adapter, callback)
       future =
         begin
           Native.wgpuAdapterRequestDevice(adapter.handle, desc, callback_info)
         rescue StandardError
           CallbackKeepalive.release(adapter, callback_token)
-          CallbackKeepalive.release(adapter, device_lost_token)
-          CallbackKeepalive.release(adapter, uncaptured_error_token)
+          release_device_callback_keepalive(device_callback_state)
           raise
         end
 
@@ -148,32 +159,41 @@ module WGPU
           true
         end
         if cleanup_abandoned
-          Native.wgpuDeviceRelease(abandoned_device) if abandoned_device && !abandoned_device.null?
-          CallbackKeepalive.release(adapter, device_lost_token)
-          CallbackKeepalive.release(adapter, uncaptured_error_token)
+          if status_holder[:value] == :success && abandoned_device && !abandoned_device.null?
+            release_abandoned_device(abandoned_device, device_callback_state)
+          else
+            release_device_callback_keepalive(device_callback_state)
+          end
         end
         raise
       end
 
       handle = device_ptr.read_pointer
       if handle.null? || status_holder[:value] != :success
-        CallbackKeepalive.release(adapter, device_lost_token)
-        CallbackKeepalive.release(adapter, uncaptured_error_token)
+        release_device_callback_keepalive(device_callback_state)
         msg = status_holder[:message] || "Unknown error"
         raise DeviceError, "Failed to request device: #{msg}"
       end
 
       begin
-        device = new(handle, adapter: adapter, label: label, callback_state: device_callback_state)
-        device.send(:retain_device_callback, device_lost_callback)
-        device.send(:retain_device_callback, uncaptured_error_callback)
+        callback_lifetime = DeviceCallbackLifetime.new do
+          release_device_callback_keepalive(device_callback_state)
+        end
+        device_callback_state[:mutex].synchronize do
+          device_callback_state[:callback_lifetime] = callback_lifetime
+        end
+        device = new(
+          handle,
+          adapter: adapter,
+          label: label,
+          callback_state: device_callback_state,
+          callback_lifetime: callback_lifetime
+        )
+        device.send(:adopt_device_callback_keepalive)
         device
       rescue StandardError
-        device ? device.release : Native.wgpuDeviceRelease(handle)
+        device ? device.release : release_abandoned_device(handle, device_callback_state)
         raise
-      ensure
-        CallbackKeepalive.release(adapter, device_lost_token)
-        CallbackKeepalive.release(adapter, uncaptured_error_token)
       end
     end
 
@@ -181,10 +201,12 @@ module WGPU
     # @param handle [FFI::Pointer] native device handle
     # @param adapter [Adapter, nil] adapter that created the device
     # @param label [String, nil] optional debug label
-    def initialize(handle, adapter: nil, label: nil, callback_state: nil)
+    # @param callback_lifetime [DeviceCallbackLifetime, nil] shared native callback lifetime
+    def initialize(handle, adapter: nil, label: nil, callback_state: nil, callback_lifetime: nil)
       @handle = handle
       @adapter = adapter
       @label = label
+      @device_callback_lifetime = callback_lifetime
       @device_callback_state = callback_state || {
         mutex: Mutex.new,
         uncaptured_error: nil,
@@ -416,6 +438,7 @@ module WGPU
     def pop_error_scope(timeout: nil)
       error_holder = { done: false, status: nil, type: nil, message: nil }
 
+      callback_lifetime_release = device_callback_lifetime_lease
       callback_token = nil
       callback = FFI::Function.new(
         :void, [:uint32, :uint32, Native::StringView.by_value, :pointer, :pointer]
@@ -429,6 +452,7 @@ module WGPU
           error_holder[:done] = true
         ensure
           CallbackKeepalive.release(self, callback_token)
+          callback_lifetime_release.call
         end
       end
 
@@ -445,6 +469,7 @@ module WGPU
           Native.wgpuDevicePopErrorScope(@handle, callback_info)
         rescue StandardError
           CallbackKeepalive.release(self, callback_token)
+          callback_lifetime_release.call
           raise
         end
       AsyncWaiter.wait(
@@ -515,7 +540,10 @@ module WGPU
       Native.wgpuDeviceDestroy(@handle)
     end
 
-    # Releases the default queue, device callbacks, and native device handle.
+    # Releases the default queue and native device handle.
+    #
+    # Device callbacks remain alive until all derived wrappers and pending
+    # callback operations have also completed their native releases.
     #
     # Calling this method more than once has no effect.
     # @return [void]
@@ -524,8 +552,7 @@ module WGPU
       return if @handle.null?
       Native.wgpuDeviceRelease(@handle)
       @handle = FFI::Pointer::NULL
-      Array(@device_callback_tokens).each { |token| CallbackKeepalive.release(self, token) }
-      @device_callback_tokens&.clear
+      @device_callback_tokens = nil
     end
 
     def self.normalize_required_features(required_features)
@@ -575,12 +602,17 @@ module WGPU
       FFI::Function.new(
         :void, [:pointer, :uint32, Native::StringView.by_value, :pointer, :pointer]
       ) do |_device, type, message, _userdata1, _userdata2|
-        error = GPUError.new(
-          type: Native::ErrorType[type] || :unknown,
-          message: string_from_callback(message)
-        )
-        dispatch_device_callback(state, :uncaptured_error, error) do
-          warn "Uncaptured GPU error (#{error.type}): #{error.message}"
+        callback_lifetime = retain_device_callback_lifetime(state)
+        begin
+          error = GPUError.new(
+            type: Native::ErrorType[type] || :unknown,
+            message: string_from_callback(message)
+          )
+          dispatch_device_callback(state, :uncaptured_error, error) do
+            warn "Uncaptured GPU error (#{error.type}): #{error.message}"
+          end
+        ensure
+          callback_lifetime&.release
         end
       end
     end
@@ -589,12 +621,67 @@ module WGPU
       FFI::Function.new(
         :void, [:pointer, :uint32, Native::StringView.by_value, :pointer, :pointer]
       ) do |_device, reason, message, _userdata1, _userdata2|
-        reason_name = Native::DeviceLostReason[reason] || :unknown
-        message_text = string_from_callback(message)
-        dispatch_device_callback(state, :device_lost, reason_name, message_text) do
-          warn "GPU device lost (#{reason_name}): #{message_text}" unless reason_name == :destroyed
+        callback_lifetime = retain_device_callback_lifetime(state)
+        begin
+          reason_name = Native::DeviceLostReason[reason] || :unknown
+          message_text = string_from_callback(message)
+          dispatch_device_callback(state, :device_lost, reason_name, message_text) do
+            warn "GPU device lost (#{reason_name}): #{message_text}" unless reason_name == :destroyed
+          end
+        ensure
+          callback_lifetime&.release
         end
       end
+    end
+
+    def self.retain_device_callback_lifetime(state)
+      state[:mutex].synchronize do
+        lifetime = state[:callback_lifetime]
+        lifetime&.retain
+        lifetime
+      end
+    end
+
+    def self.configure_device_callback_keepalive(state, owner:, tokens:)
+      state[:mutex].synchronize do
+        state[:callback_owner] = owner
+        state[:callback_tokens] = tokens
+        state[:callbacks_completed] = false
+      end
+    end
+
+    def self.transfer_device_callback_keepalive(state, new_owner)
+      state[:mutex].synchronize do
+        return [] if state[:callbacks_completed]
+
+        previous_owner = state[:callback_owner]
+        tokens = Array(state[:callback_tokens])
+        transferred = tokens.select do |token|
+          CallbackKeepalive.transfer(previous_owner, new_owner, token)
+        end
+        state[:callback_owner] = new_owner
+        state[:callback_tokens] = transferred
+        transferred
+      end
+    end
+
+    def self.release_device_callback_keepalive(state)
+      owner, tokens = state[:mutex].synchronize do
+        return if state[:callbacks_completed]
+
+        state[:callbacks_completed] = true
+        retained_owner = state.delete(:callback_owner)
+        retained_tokens = Array(state.delete(:callback_tokens))
+        state.delete(:callback_lifetime)
+        [retained_owner, retained_tokens]
+      end
+      tokens.each { |token| CallbackKeepalive.release(owner, token) } if owner
+    end
+
+    def self.release_abandoned_device(device, callback_state)
+      Native.wgpuDeviceRelease(device)
+    ensure
+      release_device_callback_keepalive(callback_state)
     end
 
     def self.dispatch_device_callback(state, key, *args)
@@ -612,12 +699,16 @@ module WGPU
 
     private_class_method :normalize_required_features, :normalize_feature_name,
       :build_required_limits, :canonical_limit_key, :build_uncaptured_error_callback,
-      :build_device_lost_callback, :dispatch_device_callback, :string_from_callback
+      :build_device_lost_callback, :retain_device_callback_lifetime,
+      :configure_device_callback_keepalive,
+      :transfer_device_callback_keepalive, :release_device_callback_keepalive,
+      :release_abandoned_device, :dispatch_device_callback, :string_from_callback
 
     private
 
-    def retain_device_callback(callback)
-      @device_callback_tokens << CallbackKeepalive.retain(self, callback)
+    def adopt_device_callback_keepalive
+      @device_callback_tokens =
+        self.class.send(:transfer_device_callback_keepalive, @device_callback_state, self)
     end
 
     def set_device_callback(name, handler)

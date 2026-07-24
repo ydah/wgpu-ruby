@@ -123,4 +123,18 @@ RSpec.describe WGPU::CallbackKeepalive, :skip_gpu_check do
 
     expect(described_class.count(owner)).to eq(0)
   end
+
+  it "transfers a live callback without dropping its global root" do
+    original_owner = Object.new
+    new_owner = Object.new
+    callback = proc {}
+    token = described_class.retain(original_owner, callback)
+
+    expect(described_class.transfer(original_owner, new_owner, token)).to be(true)
+    expect(described_class.count(original_owner)).to eq(0)
+    expect(described_class.count(new_owner)).to eq(1)
+
+    described_class.release(new_owner, token)
+    expect(described_class.count(new_owner)).to eq(0)
+  end
 end

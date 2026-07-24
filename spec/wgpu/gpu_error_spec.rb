@@ -90,6 +90,110 @@ RSpec.describe WGPU::GPUError, :skip_gpu_check do
     expect(received).to eq([[:instance_dropped, "adapter removed"]])
   end
 
+  it "keeps native device callbacks alive through child and callback completion" do
+    handle = FFI::Pointer.new(1)
+    buffer_handle = FFI::Pointer.new(2)
+    state = {
+      mutex: Mutex.new,
+      uncaptured_error: nil,
+      device_lost: nil
+    }
+    device = WGPU::Device.allocate
+    device.instance_variable_set(:@handle, handle)
+    device.instance_variable_set(:@queue, nil)
+    device.instance_variable_set(:@device_callback_state, state)
+
+    lost_callback = WGPU::Device.send(:build_device_lost_callback, state)
+    error_callback = WGPU::Device.send(:build_uncaptured_error_callback, state)
+    tokens = [
+      WGPU::CallbackKeepalive.retain(device, lost_callback),
+      WGPU::CallbackKeepalive.retain(device, error_callback)
+    ]
+    WGPU::Device.send(
+      :configure_device_callback_keepalive,
+      state,
+      owner: device,
+      tokens: tokens
+    )
+    device.instance_variable_set(:@device_callback_tokens, tokens)
+    lifetime_class = WGPU.const_get(:DeviceCallbackLifetime, false)
+    lifetime = lifetime_class.new do
+      WGPU::Device.send(:release_device_callback_keepalive, state)
+    end
+    lifetime.retain
+    device.instance_variable_set(:@device_callback_lifetime, lifetime)
+    device.instance_variable_set(:@device_callback_lifetime_retained, true)
+
+    buffer = WGPU::Buffer.allocate
+    buffer.instance_variable_set(:@handle, buffer_handle)
+    buffer.send(:attach_device_callback_lifetime, device)
+    callback_lifetime_release = buffer.send(:device_callback_lifetime_lease)
+
+    expect(WGPU::Native).to receive(:wgpuDeviceRelease).with(handle)
+    device.release
+    expect(WGPU::CallbackKeepalive.count(device)).to eq(2)
+
+    expect(WGPU::Native).to receive(:wgpuBufferRelease).with(buffer_handle)
+    buffer.release
+    expect(WGPU::CallbackKeepalive.count(device)).to eq(2)
+
+    callback_lifetime_release.call
+    callback_lifetime_release.call
+    expect(WGPU::CallbackKeepalive.count(device)).to eq(0)
+  end
+
+  it "keeps a native callback alive while its handler releases the device" do
+    handle = FFI::Pointer.new(1)
+    state = {
+      mutex: Mutex.new,
+      uncaptured_error: nil,
+      device_lost: nil
+    }
+    device = WGPU::Device.allocate
+    device.instance_variable_set(:@handle, handle)
+    device.instance_variable_set(:@queue, nil)
+    device.instance_variable_set(:@device_callback_state, state)
+
+    lost_callback = WGPU::Device.send(:build_device_lost_callback, state)
+    error_callback = WGPU::Device.send(:build_uncaptured_error_callback, state)
+    tokens = [
+      WGPU::CallbackKeepalive.retain(device, lost_callback),
+      WGPU::CallbackKeepalive.retain(device, error_callback)
+    ]
+    WGPU::Device.send(
+      :configure_device_callback_keepalive,
+      state,
+      owner: device,
+      tokens: tokens
+    )
+
+    lifetime_class = WGPU.const_get(:DeviceCallbackLifetime, false)
+    lifetime = lifetime_class.new do
+      WGPU::Device.send(:release_device_callback_keepalive, state)
+    end
+    lifetime.retain
+    state[:mutex].synchronize { state[:callback_lifetime] = lifetime }
+    device.instance_variable_set(:@device_callback_lifetime, lifetime)
+    device.instance_variable_set(:@device_callback_lifetime_retained, true)
+    device.instance_variable_set(:@device_callback_tokens, tokens)
+
+    state[:device_lost] = proc do
+      device.release
+      GC.start
+      expect(WGPU::CallbackKeepalive.count(device)).to eq(2)
+    end
+    expect(WGPU::Native).to receive(:wgpuDeviceRelease).with(handle)
+
+    lost_callback.call(
+      handle,
+      WGPU::Native::DeviceLostReason[:destroyed],
+      callback_message("").first,
+      nil,
+      nil
+    )
+    expect(WGPU::CallbackKeepalive.count(device)).to eq(0)
+  end
+
   it "retains a typed surface acquisition status" do
     error = WGPU::SurfaceAcquisitionError.new(:outdated)
 
