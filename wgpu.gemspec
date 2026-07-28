@@ -34,5 +34,5 @@ Gem::Specification.new do |spec|
   spec.extensions = ["ext/wgpu/extconf.rb"]
 
   spec.add_dependency "ffi", "~> 1.15"
-  spec.add_dependency "rubyzip", "~> 2.3"
+  spec.add_dependency "rubyzip", ">= 2.3", "< 4.0"
 end
