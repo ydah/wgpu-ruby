@@ -6,6 +6,8 @@ on:
     tags:
       - "v*"
 
+permissions: {}
+
 jobs:
   push:
     runs-on: ubuntu-latest
@@ -17,13 +19,14 @@ jobs:
       contents: write
       id-token: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ruby/setup-ruby@v1
+      - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
         with:
           ruby-version: "3.4"
-          bundler-cache: true
+      - name: Install dependencies
+        run: bundle install --jobs 4 --retry 3
       - name: Verify tag matches gem version
         if: github.event_name == 'push'
         run: bundle exec ruby -Ilib -e 'require "wgpu/version"; abort "tag/version mismatch" unless ENV.fetch("GITHUB_REF_NAME") == "v#{WGPU::VERSION}"'
@@ -52,5 +55,5 @@ jobs:
       - run: bundle exec ruby script/check_yard_coverage.rb
       - name: Build gem
         run: bundle exec gem build wgpu.gemspec
-      - uses: rubygems/release-gem@v1
+      - uses: rubygems/release-gem@052cc82692552de3ef2b81fd670e41d13cba8092 # v1.4.0
         if: github.event_name == 'push'

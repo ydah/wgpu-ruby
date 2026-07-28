@@ -6,6 +6,9 @@ on:
       - main
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   native-artifacts:
     name: Native artifact / ${{ matrix.platform }}
@@ -30,10 +33,10 @@ jobs:
             runner: windows-2025
             archive: wgpu-windows-x86_64-msvc-release.zip
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ruby/setup-ruby@v1
+      - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
         with:
           ruby-version: "3.4"
           bundler-cache: true
@@ -61,11 +64,11 @@ jobs:
           - "4.0"
           - "head"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
         with:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
@@ -86,10 +89,10 @@ jobs:
     name: No native library
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ruby/setup-ruby@v1
+      - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
         with:
           ruby-version: "3.2"
           bundler-cache: true
@@ -110,10 +113,10 @@ jobs:
       LIBGL_ALWAYS_SOFTWARE: "1"
       WGPU_BACKEND: vulkan
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ruby/setup-ruby@v1
+      - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
         with:
           ruby-version: "3.4"
           bundler-cache: true
@@ -126,7 +129,7 @@ jobs:
           echo "VK_ICD_FILENAMES=${lavapipe_icd}" >> "${GITHUB_ENV}"
       - run: bundle exec rake wgpu:install
       - name: Build and install the gem without SDL3
-        run: |
+        run: | # zizmor: ignore[adhoc-packages]
           bundle exec gem build wgpu.gemspec
           gem install --local --install-dir tmp/no-sdl-gems --ignore-dependencies wgpu-*.gem
       - name: Require the installed core without loading SDL3
@@ -143,10 +146,10 @@ jobs:
     name: RuboCop
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ruby/setup-ruby@v1
+      - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
         with:
           ruby-version: "3.2"
           bundler-cache: true
@@ -156,10 +159,10 @@ jobs:
     name: RBS and YARD
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ruby/setup-ruby@v1
+      - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
         with:
           ruby-version: "3.4"
           bundler-cache: true
@@ -174,10 +177,10 @@ jobs:
       LIBGL_ALWAYS_SOFTWARE: "1"
       WGPU_BACKEND: vulkan
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ruby/setup-ruby@v1
+      - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
         with:
           ruby-version: "3.4"
           bundler-cache: true
@@ -207,10 +210,10 @@ jobs:
     runs-on: macos-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ruby/setup-ruby@v1
+      - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
         with:
           ruby-version: "3.4"
           bundler-cache: true
