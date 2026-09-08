@@ -28,6 +28,7 @@ module WGPU
     # @raise [TimeoutError] if the request exceeds +timeout+
     def self.request(instance, power_preference: :high_performance, backend: nil, feature_level: :core,
                      force_fallback_adapter: false, compatible_surface: nil, timeout: nil)
+      timeout = AsyncWaiter.normalize_timeout(timeout)
       adapter_ptr = FFI::MemoryPointer.new(:pointer)
       status_holder = {
         done: false,
@@ -100,7 +101,7 @@ module WGPU
 
       begin
         AsyncWaiter.wait(status_holder: status_holder, instance: instance, future: future, timeout: timeout)
-      rescue TimeoutError
+      rescue StandardError
         abandoned_adapter = status_holder[:mutex].synchronize do
           status_holder[:abandoned] = true
           next unless status_holder[:done] && !status_holder[:cleanup_claimed]
@@ -212,6 +213,8 @@ module WGPU
         end
       end
       result
+    ensure
+      Native.wgpuSupportedFeaturesFreeMembers(supported) if supported
     end
 
     # Reports whether the adapter supports a feature.

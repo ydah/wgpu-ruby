@@ -214,6 +214,9 @@ module WGPU
         super
         initialize_native_resource(label: kwargs.fetch(:label, UNSET))
         attach_device_callback_lifetime_from_parent
+        initialized = true
+      ensure
+        release if !initialized && @handle && !released?
       end
 
       # Releases a resource once and unregisters it from leak tracking.

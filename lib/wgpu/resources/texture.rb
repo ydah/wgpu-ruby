@@ -25,9 +25,9 @@ module WGPU
       )
       @descriptor_keepalive = keepalive
 
-      device.push_error_scope(:validation)
-      @handle = Native.wgpuDeviceCreateTexture(NativeResource.checked_handle(device, expected_class: Device), desc)
-      error = device.pop_error_scope
+      error = device.send(:capture_error_scope) do
+        @handle = Native.wgpuDeviceCreateTexture(NativeResource.checked_handle(device, expected_class: Device), desc)
+      end
       @descriptor_keepalive = nil
 
       if @handle.null? || (error[:type] && error[:type] != :no_error)
@@ -156,9 +156,7 @@ module WGPU
       DescriptorHelpers.set_label(desc, label, keepalive:)
       desc[:usage] = normalize_usage(usage)
       desc[:dimension] = Native::EnumHelper.coerce(Native::TextureDimension, dimension, name: "texture dimension")
-      desc[:size][:width] = size[:width] || size[0]
-      desc[:size][:height] = size[:height] || size[1] || 1
-      desc[:size][:depth_or_array_layers] = size[:depth_or_array_layers] || size[2] || 1
+      desc[:size] = DescriptorHelpers.extent_3d(size)
       desc[:format] = Native::EnumHelper.coerce(Native::TextureFormat, format, name: "texture format")
       desc[:mip_level_count] = mip_level_count
       desc[:sample_count] = sample_count

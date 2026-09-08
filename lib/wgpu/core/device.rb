@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "monitor"
+
 module WGPU
   class Device
     attr_reader :handle, :queue, :adapter
@@ -18,6 +20,7 @@ module WGPU
     # @raise [TimeoutError] if the request exceeds +timeout+
     # @raise [ArgumentError] if +timeout+ is used without an instance-backed adapter
     def self.request(adapter, label: nil, required_features: [], required_limits: nil, timeout: nil)
+      timeout = AsyncWaiter.normalize_timeout(timeout)
       if timeout && !adapter.instance
         raise ArgumentError,
           "Device.request timeout requires an instance-backed adapter; " \
@@ -148,7 +151,7 @@ module WGPU
           future: future,
           timeout: timeout
         )
-      rescue TimeoutError
+      rescue StandardError
         abandoned_device = nil
         cleanup_abandoned = status_holder[:mutex].synchronize do
           status_holder[:abandoned] = true
@@ -192,7 +195,8 @@ module WGPU
         device.send(:adopt_device_callback_keepalive)
         device
       rescue StandardError
-        device ? device.release : release_abandoned_device(handle, device_callback_state)
+        device&.release
+        release_device_callback_keepalive(device_callback_state)
         raise
       end
     end
@@ -394,6 +398,8 @@ module WGPU
         end
       end
       result
+    ensure
+      Native.wgpuSupportedFeaturesFreeMembers(supported) if supported
     end
 
     # Reports whether a feature is enabled on the device.
@@ -425,70 +431,41 @@ module WGPU
     end
 
     # Pushes a scope that captures matching GPU errors.
+    # Scopes belong to the pushing thread and serialize scoped work on this device.
+    # Pop on the same thread; do not wait here for another thread's scoped work.
     # @param filter [Symbol, Integer] error filter
     # @return [void]
     def push_error_scope(filter = :validation)
       filter_value = Native::EnumHelper.coerce(Native::ErrorFilter, filter, name: "error filter")
-      Native.wgpuDevicePushErrorScope(@handle, filter_value)
+      error_scope_monitor.enter
+      begin
+        ensure_not_released!
+        Native.wgpuDevicePushErrorScope(@handle, filter_value)
+        @error_scope_depth = (@error_scope_depth || 0) + 1
+        @error_scope_owner = Thread.current
+      rescue StandardError
+        error_scope_monitor.exit
+        raise
+      end
     end
 
     # Pops the latest error scope and waits for its result.
     # @param timeout [Numeric, nil] maximum wait time in seconds
     # @return [Hash] native status, error type, and message
     def pop_error_scope(timeout: nil)
-      error_holder = { done: false, status: nil, type: nil, message: nil }
-
-      callback_lifetime_release = device_callback_lifetime_lease
-      callback_token = nil
-      callback = FFI::Function.new(
-        :void, [:uint32, :uint32, Native::StringView.by_value, :pointer, :pointer]
-      ) do |status, error_type, message, _userdata1, _userdata2|
-        begin
-          error_holder[:status] = Native::PopErrorScopeStatus[status]
-          error_holder[:type] = Native::ErrorType[error_type]
-          if message[:data] && !message[:data].null? && message[:length] > 0
-            error_holder[:message] = message[:data].read_string(message[:length])
-          end
-          error_holder[:done] = true
-        ensure
-          CallbackKeepalive.release(self, callback_token)
-          callback_lifetime_release.call
-        end
-      end
-
-      callback_info = Native::PopErrorScopeCallbackInfo.new
-      callback_info[:next_in_chain] = nil
-      callback_info[:mode] = AsyncWaiter.callback_mode(instance: @adapter&.instance)
-      callback_info[:callback] = callback
-      callback_info[:userdata1] = nil
-      callback_info[:userdata2] = nil
-
-      callback_token = CallbackKeepalive.retain(self, callback)
-      future =
-        begin
-          Native.wgpuDevicePopErrorScope(@handle, callback_info)
-        rescue StandardError
-          CallbackKeepalive.release(self, callback_token)
-          callback_lifetime_release.call
-          raise
-        end
-      AsyncWaiter.wait(
-        status_holder: error_holder,
-        instance: @adapter&.instance,
-        device: self,
-        future: future,
-        timeout: timeout
-      )
-
-      error_holder
+      timeout = AsyncWaiter.normalize_timeout(timeout)
+      error_holder, future = begin_pop_error_scope
+      wait_for_error_scope(error_holder, future, timeout: timeout)
     end
 
-    # Pops the latest error scope on a background thread.
+    # Starts popping on the calling thread and waits for completion in a background task.
     #
     # @param timeout [Numeric, nil] maximum wait time in seconds
     # @return [AsyncTask] task whose value is the error hash
     def pop_error_scope_async(timeout: nil)
-      AsyncTask.new { pop_error_scope(timeout: timeout) }
+      timeout = AsyncWaiter.normalize_timeout(timeout)
+      error_holder, future = begin_pop_error_scope
+      AsyncTask.new { wait_for_error_scope(error_holder, future, timeout: timeout) }
     end
 
     # Pops the latest error scope as a typed error.
@@ -503,10 +480,11 @@ module WGPU
     # @yieldreturn [Object] block result
     # @return [Object] block result
     def with_error_scope(filter = :validation)
-      push_error_scope(filter)
-      result = yield
-      error = GPUError.from_hash(pop_error_scope)
-      error&.raise!
+      raise ArgumentError, "block is required" unless block_given?
+
+      result = nil
+      error = capture_error_scope(filter) { result = yield }
+      GPUError.from_hash(error)&.raise!
       result
     end
 
@@ -705,6 +683,85 @@ module WGPU
       :release_abandoned_device, :dispatch_device_callback, :string_from_callback
 
     private
+
+    def begin_pop_error_scope
+      unless @error_scope_owner == Thread.current && @error_scope_depth.to_i.positive?
+        raise DeviceError, "No error scope belongs to the current thread"
+      end
+
+      error_holder = { done: false, status: nil, type: nil, message: nil }
+
+      callback_lifetime_release = device_callback_lifetime_lease
+      callback_token = nil
+      callback = FFI::Function.new(
+        :void, [:uint32, :uint32, Native::StringView.by_value, :pointer, :pointer]
+      ) do |status, error_type, message, _userdata1, _userdata2|
+        begin
+          error_holder[:status] = Native::PopErrorScopeStatus[status]
+          error_holder[:type] = Native::ErrorType[error_type]
+          if message[:data] && !message[:data].null? && message[:length] > 0
+            error_holder[:message] = message[:data].read_string(message[:length])
+          end
+          error_holder[:done] = true
+        ensure
+          CallbackKeepalive.release(self, callback_token)
+          callback_lifetime_release.call
+        end
+      end
+
+      callback_info = Native::PopErrorScopeCallbackInfo.new
+      callback_info[:next_in_chain] = nil
+      callback_info[:mode] = AsyncWaiter.callback_mode(instance: @adapter&.instance)
+      callback_info[:callback] = callback
+      callback_info[:userdata1] = nil
+      callback_info[:userdata2] = nil
+
+      callback_token = CallbackKeepalive.retain(self, callback)
+      @error_scope_depth -= 1
+      @error_scope_owner = nil if @error_scope_depth.zero?
+      future =
+        begin
+          Native.wgpuDevicePopErrorScope(@handle, callback_info)
+        rescue StandardError
+          CallbackKeepalive.release(self, callback_token)
+          callback_lifetime_release.call
+          raise
+        ensure
+          error_scope_monitor.exit
+        end
+      [error_holder, future]
+    end
+
+    def wait_for_error_scope(error_holder, future, timeout:)
+      AsyncWaiter.wait(
+        status_holder: error_holder,
+        instance: @adapter&.instance,
+        device: self,
+        future: future,
+        timeout: timeout
+      )
+      error_holder
+    end
+
+    def error_scope_monitor
+      @error_scope_monitor ||= Monitor.new
+    end
+
+    # The reentrant scope lock spans push, the operation, and native pop.
+    def capture_error_scope(filter = :validation)
+      push_error_scope(filter)
+      begin
+        yield
+      ensure
+        active_error = $!
+        begin
+          error = pop_error_scope
+        rescue StandardError
+          raise unless active_error
+        end
+      end
+      error
+    end
 
     def adopt_device_callback_keepalive
       @device_callback_tokens =

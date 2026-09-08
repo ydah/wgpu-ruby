@@ -64,3 +64,26 @@ RSpec.describe WGPU::CanvasContext, :gpu do
     end
   end
 end
+
+RSpec.describe WGPU::CanvasContext, :skip_gpu_check do
+  [:wayland, :linux_wayland].each do |platform|
+    [:surface, :wl_surface].each do |key|
+      it "wraps #{platform} raw #{key} pointers before surface operations" do
+        instance = Object.new
+        display = FFI::Pointer.new(1)
+        raw_surface = FFI::Pointer.new(2)
+        surface = instance_double(WGPU::Surface, get_preferred_format: :bgra8_unorm)
+        expect(WGPU::Surface).to receive(:from_wayland_surface).with(instance, display, raw_surface).and_return(surface)
+        context = described_class.new(instance, platform: platform, display: display, key => raw_surface)
+        expect(context.get_preferred_format(nil)).to eq(:bgra8_unorm)
+      end
+    end
+  end
+
+  it "uses an explicitly supplied WGPU surface with Wayland presentation info" do
+    surface = instance_double(WGPU::Surface, get_preferred_format: :bgra8_unorm)
+    expect(WGPU::Surface).not_to receive(:from_wayland_surface)
+    context = described_class.new(Object.new, platform: :wayland, wgpu_surface: surface)
+    expect(context.get_preferred_format(nil)).to eq(:bgra8_unorm)
+  end
+end

@@ -24,9 +24,9 @@ module WGPU
       @device = device
       desc, @descriptor_keepalive = build_descriptor(label:, entries:)
 
-      device.push_error_scope(:validation)
-      @handle = Native.wgpuDeviceCreateBindGroupLayout(NativeResource.checked_handle(device, expected_class: Device), desc)
-      error = device.pop_error_scope
+      error = device.send(:capture_error_scope) do
+        @handle = Native.wgpuDeviceCreateBindGroupLayout(NativeResource.checked_handle(device, expected_class: Device), desc)
+      end
       @descriptor_keepalive = nil
 
       if @handle.null? || (error[:type] && error[:type] != :no_error)

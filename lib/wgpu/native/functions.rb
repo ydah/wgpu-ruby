@@ -292,6 +292,9 @@ module WGPU
     attach_function :wgpuTextureViewRelease,
                     [:pointer], :void
 
+    attach_function :wgpuSupportedFeaturesFreeMembers,
+                    [SupportedFeatures.by_value], :void
+
     attach_function :wgpuAdapterInfoFreeMembers,
                     [AdapterInfo.by_value], :void
 

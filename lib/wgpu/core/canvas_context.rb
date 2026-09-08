@@ -10,7 +10,10 @@ module WGPU
     def initialize(instance, present_info = {})
       @instance = instance
       @present_info = present_info || {}
-      @surface = @present_info[:surface]
+      @surface = @present_info[:wgpu_surface]
+      if @present_info[:surface].is_a?(Surface) || ![:wayland, :linux_wayland].include?(@present_info[:platform]&.to_sym)
+        @surface ||= @present_info[:surface]
+      end
       @physical_size = [0, 0]
       @config = nil
     end
@@ -125,7 +128,7 @@ module WGPU
                  when :x11, :linux_x11
                    Surface.from_xlib_window(@instance, @present_info.fetch(:display), @present_info.fetch(:window))
                  when :wayland, :linux_wayland
-                   Surface.from_wayland_surface(@instance, @present_info.fetch(:display), @present_info.fetch(:surface))
+                   Surface.from_wayland_surface(@instance, @present_info.fetch(:display), @present_info.fetch(:wl_surface) { @present_info.fetch(:surface) })
                  else
                    raise SurfaceError, "Cannot build surface from present_info: #{@present_info.inspect}"
                  end

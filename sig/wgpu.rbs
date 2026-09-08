@@ -248,7 +248,7 @@ module WGPU
   end
 
   class BufferMappedRange
-    def initialize: (FFI::Pointer pointer, Integer size, buffer: Buffer, generation: Integer) -> void
+    def initialize: (untyped pointer, Integer size, buffer: Buffer, generation: Integer) -> void
     def read: (?type: Symbol, ?count: Integer?) -> Array[Numeric]
     def write: (data, ?type: Symbol) -> void
     def read_floats: (?Integer?) -> Array[Float]

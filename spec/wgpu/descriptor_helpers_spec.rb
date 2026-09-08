@@ -145,3 +145,32 @@ RSpec.describe WGPU::DescriptorHelpers, :skip_gpu_check do
     end.to raise_error(ArgumentError, /Unknown primitive topology :triangles.*:triangle_list/)
   end
 end
+
+RSpec.describe "texture extent normalization", :skip_gpu_check do
+  [[4], [4, 2], [4, 2, 3], { width: 4 }, { width: 4, height: 2, depth_or_array_layers: 3 }].each do |size|
+    it "normalizes #{size.inspect} for texture creation and every copy direction" do
+      extent = WGPU::DescriptorHelpers.extent_3d(size)
+      descriptor, = WGPU::Texture.allocate.send(:build_descriptor,
+        label: nil, size: size, format: :rgba8_unorm, usage: :copy_dst,
+        dimension: :d2, mip_level_count: 1, sample_count: 1, view_formats: [])
+      expect(descriptor[:size].values).to eq(extent.values)
+      encoder = WGPU::CommandEncoder.allocate
+      encoder.instance_variable_set(:@handle, FFI::Pointer.new(1))
+      texture = WGPU::Texture.from_handle(FFI::Pointer.new(2))
+      buffer = WGPU::Buffer.allocate
+      buffer.instance_variable_set(:@handle, FFI::Pointer.new(3))
+      [:wgpuCommandEncoderCopyBufferToTexture, :wgpuCommandEncoderCopyTextureToBuffer,
+       :wgpuCommandEncoderCopyTextureToTexture].each do |method|
+        expect(WGPU::Native).to receive(method) do |_handle, _src, _dst, actual|
+          expect(actual.values).to eq(extent.values)
+        end
+      end
+      encoder.copy_buffer_to_texture(source: { buffer: buffer, bytes_per_row: 256 },
+        destination: { texture: texture }, copy_size: size)
+      encoder.copy_texture_to_buffer(source: { texture: texture },
+        destination: { buffer: buffer, bytes_per_row: 256 }, copy_size: size)
+      encoder.copy_texture_to_texture(source: { texture: texture },
+        destination: { texture: texture }, copy_size: size)
+    end
+  end
+end

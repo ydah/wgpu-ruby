@@ -27,7 +27,9 @@ Thread implementation until those native entry points are implemented.
 Synchronous adapter/device requests, `Buffer#map_sync`,
 `Device#pop_error_scope`, and `Queue#on_submitted_work_done` accept
 `timeout:` in seconds. The default `nil` preserves the prior unbounded wait.
-Expiry raises `WGPU::TimeoutError`.
+Expiry raises `WGPU::TimeoutError`. Timeouts must be finite and non-negative;
+invalid values are rejected before starting the native operation. Adapter and
+device requests also reclaim their handles if waiting fails for another reason.
 
 `Device.request` can time out only when its adapter is associated with an
 `Instance`. When adopting a native adapter, pass `instance:` to

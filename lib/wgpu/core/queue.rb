@@ -82,16 +82,7 @@ module WGPU
         name: "texture aspect"
       )
 
-      extent = Native::Extent3D.new
-      if size.is_a?(Array)
-        extent[:width] = size[0]
-        extent[:height] = size[1] || 1
-        extent[:depth_or_array_layers] = size[2] || 1
-      else
-        extent[:width] = size[:width]
-        extent[:height] = size[:height] || 1
-        extent[:depth_or_array_layers] = size[:depth_or_array_layers] || 1
-      end
+      extent = DescriptorHelpers.extent_3d(size)
 
       layout = Native::TextureDataLayout.new
       layout[:offset] = data_layout[:offset] || 0
@@ -148,7 +139,8 @@ module WGPU
       device ||= @device
       raise ArgumentError, "device is required when the queue has no owning device" unless device
 
-      width, height, depth = texture_extent(size)
+      extent = DescriptorHelpers.extent_3d(size)
+      width, height, depth = extent.values
       bytes_per_row = data_layout[:bytes_per_row]
       raise ArgumentError, "data_layout[:bytes_per_row] is required" unless bytes_per_row
 
@@ -206,6 +198,7 @@ module WGPU
     # @param timeout [Numeric, nil] maximum wait time in seconds
     # @return [Symbol] native completion status
     def on_submitted_work_done(device: nil, timeout: nil)
+      timeout = AsyncWaiter.normalize_timeout(timeout)
       device ||= @device
       instance = device&.adapter&.instance
       status_holder = { done: false, status: nil }
@@ -270,14 +263,6 @@ module WGPU
     end
 
     private
-
-    def texture_extent(size)
-      if size.is_a?(Array)
-        [size.fetch(0), size[1] || 1, size[2] || 1]
-      else
-        [size.fetch(:width), size[:height] || 1, size[:depth_or_array_layers] || 1]
-      end
-    end
 
     def validate_readback_staging!(staging, required_size)
       if staging.size < required_size

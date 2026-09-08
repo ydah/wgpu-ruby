@@ -100,10 +100,7 @@ module WGPU
     def copy_buffer_to_texture(source:, destination:, copy_size:)
       raise CommandError, "Encoder already finished" if @finished
 
-      size = Native::Extent3D.new
-      size[:width] = copy_size[:width] || copy_size[0]
-      size[:height] = copy_size[:height] || copy_size[1] || 1
-      size[:depth_or_array_layers] = copy_size[:depth_or_array_layers] || copy_size[2] || 1
+      size = DescriptorHelpers.extent_3d(copy_size)
 
       src = Native::ImageCopyBuffer.new
       src[:layout][:offset] = source[:offset] || 0
@@ -134,10 +131,7 @@ module WGPU
     def copy_texture_to_buffer(source:, destination:, copy_size:)
       raise CommandError, "Encoder already finished" if @finished
 
-      size = Native::Extent3D.new
-      size[:width] = copy_size[:width] || copy_size[0]
-      size[:height] = copy_size[:height] || copy_size[1] || 1
-      size[:depth_or_array_layers] = copy_size[:depth_or_array_layers] || copy_size[2] || 1
+      size = DescriptorHelpers.extent_3d(copy_size)
 
       src = Native::ImageCopyTexture.new
       src[:texture] = NativeResource.checked_handle(source[:texture], expected_class: Texture)
@@ -192,10 +186,7 @@ module WGPU
         name: "destination texture aspect"
       )
 
-      size = Native::Extent3D.new
-      size[:width] = copy_size[:width] || copy_size[0]
-      size[:height] = copy_size[:height] || copy_size[1] || 1
-      size[:depth_or_array_layers] = copy_size[:depth_or_array_layers] || copy_size[2] || 1
+      size = DescriptorHelpers.extent_3d(copy_size)
 
       Native.wgpuCommandEncoderCopyTextureToTexture(@handle, src, dst, size)
     end
@@ -223,7 +214,7 @@ module WGPU
       raise CommandError, "Encoder already finished" if @finished
       buffer_handle = NativeResource.checked_handle(buffer, expected_class: Buffer)
       offset = DataTypes.validate_alignment!(offset, 4, name: "clear offset")
-      size = DataTypes.validate_alignment!(size || buffer.size - offset, 4, name: "clear size")
+      size = DataTypes.validate_alignment!(size || (buffer.size - offset), 4, name: "clear size")
       if offset > buffer.size || size > buffer.size - offset
         raise ArgumentError, "clear range exceeds buffer size"
       end

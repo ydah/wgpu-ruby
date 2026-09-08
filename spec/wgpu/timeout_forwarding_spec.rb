@@ -160,6 +160,8 @@ RSpec.describe "synchronous timeout forwarding", :skip_gpu_check do
     device.instance_variable_set(:@handle, pointer)
     device.instance_variable_set(:@adapter, nil)
     allow(WGPU::Native).to receive(:wgpuDevicePopErrorScope).and_return(Object.new)
+    allow(WGPU::Native).to receive(:wgpuDevicePushErrorScope)
+    device.push_error_scope
 
     expect_forwarded_timeout(timeout) { device.pop_error_scope(timeout: timeout) }
     expect(WGPU::CallbackKeepalive.count(device)).to eq(1)

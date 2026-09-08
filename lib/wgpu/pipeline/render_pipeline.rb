@@ -22,9 +22,9 @@ module WGPU
         fragment:
       )
 
-      device.push_error_scope(:validation)
-      @handle = Native.wgpuDeviceCreateRenderPipeline(NativeResource.checked_handle(device, expected_class: Device), desc)
-      error = device.pop_error_scope
+      error = device.send(:capture_error_scope) do
+        @handle = Native.wgpuDeviceCreateRenderPipeline(NativeResource.checked_handle(device, expected_class: Device), desc)
+      end
 
       if @handle.null? || (error[:type] && error[:type] != :no_error)
         msg = error[:message] || "Failed to create render pipeline"

@@ -71,3 +71,61 @@ RSpec.describe "native resource boundaries", :skip_gpu_check do
     end
   end
 end
+
+RSpec.describe "native boundary regressions", :gpu do
+  let(:instance) { WGPU::Instance.new }
+  let(:adapter) { instance.request_adapter }
+  let(:device) { adapter.request_device }
+
+  after do
+    device.release
+    adapter.release
+    instance.release
+  end
+
+  it "tracks actual partial mappings and permanently invalidates old views" do
+    buffer = device.create_buffer(size: 256, usage: [:map_read, :copy_dst])
+    buffer.map_sync(:read, offset: 128, size: 64)
+    expect(buffer.read_mapped_data(offset: 128, size: 64).bytesize).to eq(64)
+    expect { buffer.read_mapped_data(offset: 0, size: 8) }.to raise_error(WGPU::BufferError)
+    expect { buffer.mapped_range(offset: 192, size: 8) }.to raise_error(WGPU::BufferError)
+    view = buffer.mapped_range(offset: 128, size: 8)
+    buffer.unmap
+    expect { view.read_bytes }.to raise_error(WGPU::BufferError)
+    buffer.map_sync(:read, offset: 128, size: 64)
+    expect { view.read_bytes }.to raise_error(WGPU::BufferError)
+    expect(buffer.mapped_range(offset: 128, size: 8).read_bytes.bytesize).to eq(8)
+  ensure
+    buffer&.unmap if buffer && buffer.map_state == :mapped
+    buffer&.release
+  end
+
+  it "round-trips Array texture extents through every texture copy direction" do
+    resources = []
+    bytes = (0...512).map { |index| index % 256 }.pack("C*")
+    source = device.create_buffer_with_data(data: bytes, usage: :copy_src)
+    resources << source
+    textures = Array.new(2) do
+      texture = device.create_texture(size: [64, 2], format: :rgba8_unorm, usage: [:copy_src, :copy_dst])
+      resources << texture
+      texture
+    end
+    encoder = device.create_command_encoder
+    resources << encoder
+    encoder.copy_buffer_to_texture(source: { buffer: source, bytes_per_row: 256 },
+      destination: { texture: textures.first }, copy_size: [64, 2])
+    encoder.copy_texture_to_texture(source: { texture: textures.first },
+      destination: { texture: textures.last }, copy_size: [64, 2])
+    commands = encoder.finish
+    resources << commands
+    device.queue.submit([commands])
+    expect(device.queue.read_texture(source: { texture: textures.last },
+      data_layout: { bytes_per_row: 256 }, size: [64, 2])).to eq(bytes)
+    device.queue.write_texture(destination: { texture: textures.last }, data: bytes.reverse,
+      data_layout: { bytes_per_row: 256 }, size: [64, 2])
+    expect(device.queue.read_texture(source: { texture: textures.last },
+      data_layout: { bytes_per_row: 256 }, size: [64, 2])).to eq(bytes.reverse)
+  ensure
+    resources.reverse_each(&:release)
+  end
+end

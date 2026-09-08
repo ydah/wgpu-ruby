@@ -57,6 +57,11 @@ their window toolkit to `Surface.from_metal_layer`,
 native window/display/layer alive longer than the surface; wgpu-ruby does not
 take ownership of those platform objects.
 
+For `CanvasContext`, pass an existing surface as `wgpu_surface: surface`.
+Wayland platform descriptors use `platform: :wayland`, `display: wl_display`,
+and `wl_surface: wl_surface_pointer`. The older `surface:` key remains
+supported for existing WGPU surfaces and raw Wayland pointers.
+
 [`examples/09_clear_color.rb`](../examples/09_clear_color.rb) is the smallest
 resizable render loop. The other rendering examples cover vertex/index
 buffers, textures, bind groups, depth testing, and uniform updates.

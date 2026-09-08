@@ -33,6 +33,15 @@ bytes = device.create_buffer(
 end
 ```
 
+Native wrappers reject `dup` and `clone` with `TypeError`. Resource arguments
+are checked for the expected wrapper type and release state before their
+handles enter FFI. Failed constructors release any native handle they acquired.
+
+Mapped views retain their buffer, but become invalid after `unmap`, `destroy`,
+or `release`. Reading or writing an invalid view raises `WGPU::BufferError`,
+even after the buffer is mapped again. Accesses must fit within the current
+mapped interval, not just within the buffer's total size.
+
 ## Wrapper matrix
 
 The table covers all 23 native wrapper classes. `BufferMappedRange`,

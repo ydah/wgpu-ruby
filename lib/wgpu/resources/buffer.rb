@@ -36,9 +36,9 @@ module WGPU
       )
       @descriptor_keepalive = keepalive
 
-      device.push_error_scope(:validation)
-      @handle = Native.wgpuDeviceCreateBuffer(NativeResource.checked_handle(device, expected_class: Device), desc)
-      error = device.pop_error_scope
+      error = device.send(:capture_error_scope) do
+        @handle = Native.wgpuDeviceCreateBuffer(NativeResource.checked_handle(device, expected_class: Device), desc)
+      end
       @descriptor_keepalive = nil
 
       if @handle.null? || (error[:type] && error[:type] != :no_error)
@@ -415,6 +415,8 @@ module WGPU
     # Wraps a native mapped memory range.
     # @param pointer [FFI::Pointer] start of mapped memory
     # @param size [Integer] range size in bytes
+    # @param buffer [Buffer] owner retaining the mapped allocation
+    # @param generation [Integer] mapping generation at acquisition
     def initialize(pointer, size, buffer:, generation:)
       @pointer = pointer
       @size = size

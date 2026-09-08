@@ -8,6 +8,19 @@
 maps WebGPU error types to `ValidationError`, `OutOfMemoryError`,
 `InternalError`, or `DeviceLostError`.
 
+`with_error_scope { ... }` always pops its scope, including when the block
+raises; the original block exception is preserved. Popping without a scope
+owned by the current thread raises `WGPU::DeviceError` before calling native
+code.
+
+Scopes are nested and serialized per device from push through native pop.
+Push and pop on the same thread, and finish the scope before waiting for
+another thread's scoped work on that device. In particular, do not wait for
+an asynchronous pipeline creation inside `with_error_scope`.
+`pop_error_scope_async` starts the pop immediately on the calling thread and
+waits for its result in the background, so a later push cannot change which
+scope it pops.
+
 Device-level callbacks can be installed after device creation:
 
 ```ruby

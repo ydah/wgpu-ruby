@@ -6,6 +6,28 @@ module WGPU
 
     module_function
 
+    # Normalizes an Array or Hash texture extent to a native descriptor.
+    # @param size [Array<Integer>, Hash] width, height, and depth/layer count
+    # @return [Native::Extent3D]
+    def extent_3d(size)
+      values = case size
+               when Array
+                 [size.fetch(0), size[1] || 1, size[2] || 1]
+               when Hash
+                 [size.fetch(:width), size[:height] || 1, size[:depth_or_array_layers] || 1]
+               else
+                 raise ArgumentError, "texture size must be an Array or Hash"
+               end
+      extent = Native::Extent3D.new
+      [:width, :height, :depth_or_array_layers].zip(values).each do |field, value|
+        value = Integer(value)
+        raise ArgumentError, "#{field} must be between 0 and 4294967295" unless (0..0xFFFFFFFF).cover?(value)
+
+        extent[field] = value
+      end
+      extent
+    end
+
     # Writes an optional Ruby label into a native descriptor.
     #
     # @param descriptor [FFI::Struct] descriptor with a +label+ member
