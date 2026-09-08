@@ -40,7 +40,9 @@ RSpec.describe WGPU::DataTypes, :skip_gpu_check do
 
   it "supports typed mapped-range reads and writes" do
     pointer = FFI::MemoryPointer.new(:char, 8)
-    range = WGPU::BufferMappedRange.new(pointer, 8)
+    buffer = WGPU::Buffer.allocate
+    buffer.instance_variable_set(:@mapped, true)
+    range = WGPU::BufferMappedRange.new(pointer, 8, buffer: buffer, generation: 0)
 
     range.write_uint32s([1, 0xFFFFFFFF])
 
@@ -50,7 +52,9 @@ RSpec.describe WGPU::DataTypes, :skip_gpu_check do
 
   it "rejects mapped-range reads and raw writes beyond the native allocation" do
     pointer = FFI::MemoryPointer.new(:char, 8)
-    range = WGPU::BufferMappedRange.new(pointer, 8)
+    buffer = WGPU::Buffer.allocate
+    buffer.instance_variable_set(:@mapped, true)
+    range = WGPU::BufferMappedRange.new(pointer, 8, buffer: buffer, generation: 0)
 
     expect { range.read_uint32s(3) }.to raise_error(ArgumentError, /exceeds mapped range/)
     expect { range.read_uint8s(-1) }.to raise_error(ArgumentError, /count must be non-negative/)

@@ -13,7 +13,7 @@ module WGPU
 
       layouts = Array(bind_group_layouts)
       layouts_ptr = FFI::MemoryPointer.new(:pointer, layouts.size)
-      layouts_ptr.write_array_of_pointer(layouts.map(&:handle))
+      layouts_ptr.write_array_of_pointer(layouts.map { |layout| NativeResource.checked_handle(layout, expected_class: BindGroupLayout) })
 
       desc = Native::PipelineLayoutDescriptor.new
       desc[:next_in_chain] = nil
@@ -29,7 +29,7 @@ module WGPU
       desc[:bind_group_layouts] = layouts_ptr
 
       device.push_error_scope(:validation)
-      @handle = Native.wgpuDeviceCreatePipelineLayout(device.handle, desc)
+      @handle = Native.wgpuDeviceCreatePipelineLayout(NativeResource.checked_handle(device, expected_class: Device), desc)
       error = device.pop_error_scope
 
       if @handle.null? || (error[:type] && error[:type] != :no_error)

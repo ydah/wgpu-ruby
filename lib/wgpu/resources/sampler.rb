@@ -26,7 +26,7 @@ module WGPU
       @descriptor_keepalive = keepalive
 
       device.push_error_scope(:validation)
-      @handle = Native.wgpuDeviceCreateSampler(device.handle, desc)
+      @handle = Native.wgpuDeviceCreateSampler(NativeResource.checked_handle(device, expected_class: Device), desc)
       error = device.pop_error_scope
       @descriptor_keepalive = nil
 

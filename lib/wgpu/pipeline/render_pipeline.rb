@@ -23,7 +23,7 @@ module WGPU
       )
 
       device.push_error_scope(:validation)
-      @handle = Native.wgpuDeviceCreateRenderPipeline(device.handle, desc)
+      @handle = Native.wgpuDeviceCreateRenderPipeline(NativeResource.checked_handle(device, expected_class: Device), desc)
       error = device.pop_error_scope
 
       if @handle.null? || (error[:type] && error[:type] != :no_error)
@@ -78,7 +78,7 @@ module WGPU
         context: "render pipeline vertex descriptor"
       )
       vertex_state[:next_in_chain] = nil
-      vertex_state[:module] = vertex[:module].handle
+      vertex_state[:module] = NativeResource.checked_handle(vertex[:module], expected_class: ShaderModule)
 
       DescriptorHelpers.set_nullable_string_view(
         vertex_state[:entry_point],
@@ -265,7 +265,7 @@ module WGPU
       frag = Native::FragmentState.new
       @pointers << frag
       frag[:next_in_chain] = nil
-      frag[:module] = fragment[:module].handle
+      frag[:module] = NativeResource.checked_handle(fragment[:module], expected_class: ShaderModule)
 
       DescriptorHelpers.set_nullable_string_view(
         frag[:entry_point],
@@ -369,7 +369,7 @@ module WGPU
 
     def normalize_layout(layout)
       return nil if layout.nil? || layout == :auto || layout == "auto"
-      layout.handle
+      NativeResource.checked_handle(layout, expected_class: PipelineLayout)
     end
   end
 end

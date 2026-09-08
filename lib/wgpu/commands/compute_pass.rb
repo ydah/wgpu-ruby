@@ -25,7 +25,7 @@ module WGPU
       @timestamp_writes = nil
       if timestamp_writes
         @timestamp_writes = Native::ComputePassTimestampWrites.new
-        @timestamp_writes[:query_set] = timestamp_writes.fetch(:query_set).handle
+        @timestamp_writes[:query_set] = NativeResource.checked_handle(timestamp_writes.fetch(:query_set), expected_class: QuerySet)
         @timestamp_writes[:beginning_of_pass_write_index] = timestamp_writes[:beginning_of_pass_write_index] || 0xFFFFFFFF
         @timestamp_writes[:end_of_pass_write_index] = timestamp_writes[:end_of_pass_write_index] || 0xFFFFFFFF
         desc[:timestamp_writes] = @timestamp_writes.to_ptr
@@ -33,7 +33,7 @@ module WGPU
         desc[:timestamp_writes] = nil
       end
 
-      @handle = Native.wgpuCommandEncoderBeginComputePass(encoder.handle, desc)
+      @handle = Native.wgpuCommandEncoderBeginComputePass(NativeResource.checked_handle(encoder, expected_class: CommandEncoder), desc)
       raise CommandError, "Failed to begin compute pass" if @handle.null?
     end
 
@@ -41,7 +41,7 @@ module WGPU
     # @param pipeline [ComputePipeline] pipeline to bind
     # @return [void]
     def set_pipeline(pipeline)
-      Native.wgpuComputePassEncoderSetPipeline(@handle, pipeline.handle)
+      Native.wgpuComputePassEncoderSetPipeline(@handle, NativeResource.checked_handle(pipeline, expected_class: ComputePipeline))
     end
 
     # Binds a resource group for subsequent dispatches.
@@ -51,11 +51,11 @@ module WGPU
     # @return [void]
     def set_bind_group(index, bind_group, dynamic_offsets: [])
       if dynamic_offsets.empty?
-        Native.wgpuComputePassEncoderSetBindGroup(@handle, index, bind_group.handle, 0, nil)
+        Native.wgpuComputePassEncoderSetBindGroup(@handle, index, NativeResource.checked_handle(bind_group, expected_class: BindGroup), 0, nil)
       else
         offsets_ptr = FFI::MemoryPointer.new(:uint32, dynamic_offsets.size)
         offsets_ptr.write_array_of_uint32(dynamic_offsets)
-        Native.wgpuComputePassEncoderSetBindGroup(@handle, index, bind_group.handle, dynamic_offsets.size, offsets_ptr)
+        Native.wgpuComputePassEncoderSetBindGroup(@handle, index, NativeResource.checked_handle(bind_group, expected_class: BindGroup), dynamic_offsets.size, offsets_ptr)
       end
     end
 
@@ -73,7 +73,7 @@ module WGPU
     # @param offset [Integer] byte offset of the arguments
     # @return [void]
     def dispatch_workgroups_indirect(buffer, offset: 0)
-      Native.wgpuComputePassEncoderDispatchWorkgroupsIndirect(@handle, buffer.handle, offset)
+      Native.wgpuComputePassEncoderDispatchWorkgroupsIndirect(@handle, NativeResource.checked_handle(buffer, expected_class: Buffer), offset)
     end
 
     # Starts a labeled group in GPU debugging tools.

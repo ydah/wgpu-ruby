@@ -34,10 +34,10 @@ module WGPU
         desc[:depth_stencil_attachment] = nil
       end
 
-      desc[:occlusion_query_set] = occlusion_query_set&.handle
+      desc[:occlusion_query_set] = (occlusion_query_set && NativeResource.checked_handle(occlusion_query_set, expected_class: QuerySet))
       if timestamp_writes
         ts = Native::RenderPassTimestampWrites.new
-        ts[:query_set] = timestamp_writes.fetch(:query_set).handle
+        ts[:query_set] = NativeResource.checked_handle(timestamp_writes.fetch(:query_set), expected_class: QuerySet)
         ts[:beginning_of_pass_write_index] = timestamp_writes[:beginning_of_pass_write_index] || 0xFFFFFFFF
         ts[:end_of_pass_write_index] = timestamp_writes[:end_of_pass_write_index] || 0xFFFFFFFF
         @pointers << ts
@@ -46,7 +46,7 @@ module WGPU
         desc[:timestamp_writes] = nil
       end
 
-      @handle = Native.wgpuCommandEncoderBeginRenderPass(encoder.handle, desc)
+      @handle = Native.wgpuCommandEncoderBeginRenderPass(NativeResource.checked_handle(encoder, expected_class: CommandEncoder), desc)
       raise CommandError, "Failed to begin render pass" if @handle.null?
     end
 
@@ -54,7 +54,7 @@ module WGPU
     # @param pipeline [RenderPipeline] pipeline to bind
     # @return [void]
     def set_pipeline(pipeline)
-      Native.wgpuRenderPassEncoderSetPipeline(@handle, pipeline.handle)
+      Native.wgpuRenderPassEncoderSetPipeline(@handle, NativeResource.checked_handle(pipeline, expected_class: RenderPipeline))
     end
 
     # Binds a resource group for subsequent draws.
@@ -64,11 +64,11 @@ module WGPU
     # @return [void]
     def set_bind_group(index, bind_group, dynamic_offsets: [])
       if dynamic_offsets.empty?
-        Native.wgpuRenderPassEncoderSetBindGroup(@handle, index, bind_group.handle, 0, nil)
+        Native.wgpuRenderPassEncoderSetBindGroup(@handle, index, NativeResource.checked_handle(bind_group, expected_class: BindGroup), 0, nil)
       else
         offsets_ptr = FFI::MemoryPointer.new(:uint32, dynamic_offsets.size)
         offsets_ptr.write_array_of_uint32(dynamic_offsets)
-        Native.wgpuRenderPassEncoderSetBindGroup(@handle, index, bind_group.handle, dynamic_offsets.size, offsets_ptr)
+        Native.wgpuRenderPassEncoderSetBindGroup(@handle, index, NativeResource.checked_handle(bind_group, expected_class: BindGroup), dynamic_offsets.size, offsets_ptr)
       end
     end
 
@@ -80,7 +80,7 @@ module WGPU
     # @return [void]
     def set_vertex_buffer(slot, buffer, offset: 0, size: nil)
       size ||= buffer.size - offset
-      Native.wgpuRenderPassEncoderSetVertexBuffer(@handle, slot, buffer.handle, offset, size)
+      Native.wgpuRenderPassEncoderSetVertexBuffer(@handle, slot, NativeResource.checked_handle(buffer, expected_class: Buffer), offset, size)
     end
 
     # Binds an index buffer for indexed draws.
@@ -92,7 +92,7 @@ module WGPU
     def set_index_buffer(buffer, format, offset: 0, size: nil)
       size ||= buffer.size - offset
       format_value = Native::EnumHelper.coerce(Native::IndexFormat, format, name: "index format")
-      Native.wgpuRenderPassEncoderSetIndexBuffer(@handle, buffer.handle, format_value, offset, size)
+      Native.wgpuRenderPassEncoderSetIndexBuffer(@handle, NativeResource.checked_handle(buffer, expected_class: Buffer), format_value, offset, size)
     end
 
     # Records a non-indexed draw.
@@ -161,7 +161,7 @@ module WGPU
     # @param offset [Integer] byte offset of the arguments
     # @return [void]
     def draw_indirect(buffer, offset: 0)
-      Native.wgpuRenderPassEncoderDrawIndirect(@handle, buffer.handle, offset)
+      Native.wgpuRenderPassEncoderDrawIndirect(@handle, NativeResource.checked_handle(buffer, expected_class: Buffer), offset)
     end
 
     # Draws using indexed arguments stored in a buffer.
@@ -170,7 +170,7 @@ module WGPU
     # @param offset [Integer] byte offset of the arguments
     # @return [void]
     def draw_indexed_indirect(buffer, offset: 0)
-      Native.wgpuRenderPassEncoderDrawIndexedIndirect(@handle, buffer.handle, offset)
+      Native.wgpuRenderPassEncoderDrawIndexedIndirect(@handle, NativeResource.checked_handle(buffer, expected_class: Buffer), offset)
     end
 
     # Executes pre-recorded render bundles.
@@ -178,7 +178,7 @@ module WGPU
     # @param bundles [Array<RenderBundle>] bundles to execute in order
     # @return [void]
     def execute_bundles(bundles)
-      bundle_handles = bundles.map(&:handle)
+      bundle_handles = bundles.map { |bundle| NativeResource.checked_handle(bundle, expected_class: RenderBundle) }
       bundles_ptr = FFI::MemoryPointer.new(:pointer, bundle_handles.size)
       bundles_ptr.write_array_of_pointer(bundle_handles)
       Native.wgpuRenderPassEncoderExecuteBundles(@handle, bundle_handles.size, bundles_ptr)
@@ -283,9 +283,9 @@ module WGPU
       attachments.each_with_index do |att, i|
         ca = Native::RenderPassColorAttachment.new(ptr + (i * Native::RenderPassColorAttachment.size))
         ca[:next_in_chain] = nil
-        ca[:view] = att[:view].handle
+        ca[:view] = NativeResource.checked_handle(att[:view], expected_class: TextureView)
         ca[:depth_slice] = att[:depth_slice] || 0xFFFFFFFF
-        ca[:resolve_target] = att[:resolve_target]&.handle
+        ca[:resolve_target] = (att[:resolve_target] && NativeResource.checked_handle(att[:resolve_target], expected_class: TextureView))
         ca[:load_op] = Native::EnumHelper.coerce(Native::LoadOp, att[:load_op] || :clear, name: "load op")
         ca[:store_op] = Native::EnumHelper.coerce(Native::StoreOp, att[:store_op] || :store, name: "store op")
 
@@ -303,7 +303,7 @@ module WGPU
       ds = Native::RenderPassDepthStencilAttachment.new
       @pointers << ds
 
-      ds[:view] = att[:view].handle
+      ds[:view] = NativeResource.checked_handle(att[:view], expected_class: TextureView)
       ds[:depth_load_op] = Native::EnumHelper.coerce(
         Native::LoadOp,
         att[:depth_load_op] || :clear,

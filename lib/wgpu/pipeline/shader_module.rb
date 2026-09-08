@@ -31,7 +31,7 @@ module WGPU
       end
 
       device.push_error_scope(:validation)
-      @handle = Native.wgpuDeviceCreateShaderModule(device.handle, desc)
+      @handle = Native.wgpuDeviceCreateShaderModule(NativeResource.checked_handle(device, expected_class: Device), desc)
       error = device.pop_error_scope
 
       if @handle.null? || (error[:type] && error[:type] != :no_error)

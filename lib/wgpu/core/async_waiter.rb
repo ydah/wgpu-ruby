@@ -45,8 +45,7 @@ module WGPU
     # @return [void]
     # @raise [TimeoutError] if completion exceeds the timeout
     def wait(status_holder:, instance: nil, device: nil, future: nil, timeout: nil)
-      timeout = Float(timeout) if timeout
-      raise ArgumentError, "timeout must be non-negative" if timeout&.negative?
+      timeout = normalize_timeout(timeout)
 
       deadline = monotonic_time + timeout if timeout
       wait_info = build_wait_info(future) if instance && Native.future_api?
@@ -60,10 +59,22 @@ module WGPU
         elsif instance
           instance.process_events
         elsif device && Native.device_poll_available?
-          Native.wgpuDevicePoll(device.handle, 0, nil)
+          Native.wgpuDevicePoll(NativeResource.checked_handle(device, expected_class: Device), 0, nil)
         end
         sleep(poll_interval) unless status_holder[:done] || waited
       end
+    end
+
+    # Validates a timeout before any native operation is started.
+    def normalize_timeout(timeout)
+      return nil if timeout.nil?
+
+      value = Float(timeout)
+      raise ArgumentError, "timeout must be finite and non-negative" unless value.finite? && value >= 0
+
+      value
+    rescue TypeError
+      raise ArgumentError, "timeout must be a number"
     end
 
     def callback_mode_value(name)
@@ -87,7 +98,7 @@ module WGPU
     private_class_method :build_wait_info
 
     def wait_with_wait_any(instance, wait_info)
-      status = Native.wgpuInstanceWaitAny(instance.handle, 1, wait_info.to_ptr, 0)
+      status = Native.wgpuInstanceWaitAny(NativeResource.checked_handle(instance, expected_class: Instance), 1, wait_info.to_ptr, 0)
       return false if [:success, :timed_out].include?(status)
 
       raise Error, "wgpuInstanceWaitAny failed: #{status.inspect}"

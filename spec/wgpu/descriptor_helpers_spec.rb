@@ -69,7 +69,8 @@ RSpec.describe WGPU::DescriptorHelpers, :skip_gpu_check do
   end
 
   it "builds RenderPipeline defaults and nested state without a GPU" do
-    shader = Struct.new(:handle).new(FFI::Pointer.new(1))
+    shader = WGPU::ShaderModule.allocate
+    shader.instance_variable_set(:@handle, FFI::Pointer.new(1))
     descriptor, keepalive = WGPU::RenderPipeline.allocate.send(
       :build_descriptor,
       label: "pipeline",
@@ -109,7 +110,8 @@ RSpec.describe WGPU::DescriptorHelpers, :skip_gpu_check do
   end
 
   it "builds ComputePipeline descriptors with override constants without a GPU" do
-    shader = Struct.new(:handle).new(FFI::Pointer.new(1))
+    shader = WGPU::ShaderModule.allocate
+    shader.instance_variable_set(:@handle, FFI::Pointer.new(1))
     descriptor, keepalive = WGPU::ComputePipeline.allocate.send(
       :build_descriptor,
       label: nil,
@@ -126,7 +128,8 @@ RSpec.describe WGPU::DescriptorHelpers, :skip_gpu_check do
   end
 
   it "rejects invalid nested pipeline enums with valid candidates" do
-    shader = Struct.new(:handle).new(FFI::Pointer.new(1))
+    shader = WGPU::ShaderModule.allocate
+    shader.instance_variable_set(:@handle, FFI::Pointer.new(1))
 
     expect do
       WGPU::RenderPipeline.allocate.send(

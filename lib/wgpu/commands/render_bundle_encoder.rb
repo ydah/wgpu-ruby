@@ -47,7 +47,7 @@ module WGPU
       desc[:depth_read_only] = depth_read_only ? 1 : 0
       desc[:stencil_read_only] = stencil_read_only ? 1 : 0
 
-      @handle = Native.wgpuDeviceCreateRenderBundleEncoder(device.handle, desc)
+      @handle = Native.wgpuDeviceCreateRenderBundleEncoder(NativeResource.checked_handle(device, expected_class: Device), desc)
       raise RenderBundleError, "Failed to create render bundle encoder" if @handle.null?
     end
 
@@ -58,7 +58,7 @@ module WGPU
     def set_pipeline(pipeline)
       raise RenderBundleError, "Encoder already finished" if @finished
 
-      Native.wgpuRenderBundleEncoderSetPipeline(@handle, pipeline.handle)
+      Native.wgpuRenderBundleEncoderSetPipeline(@handle, NativeResource.checked_handle(pipeline, expected_class: RenderPipeline))
     end
 
     # Binds a resource group for subsequent bundle draws.
@@ -72,9 +72,9 @@ module WGPU
       if dynamic_offsets && !dynamic_offsets.empty?
         offsets_ptr = FFI::MemoryPointer.new(:uint32, dynamic_offsets.size)
         offsets_ptr.write_array_of_uint32(dynamic_offsets)
-        Native.wgpuRenderBundleEncoderSetBindGroup(@handle, index, bind_group.handle, dynamic_offsets.size, offsets_ptr)
+        Native.wgpuRenderBundleEncoderSetBindGroup(@handle, index, NativeResource.checked_handle(bind_group, expected_class: BindGroup), dynamic_offsets.size, offsets_ptr)
       else
-        Native.wgpuRenderBundleEncoderSetBindGroup(@handle, index, bind_group.handle, 0, nil)
+        Native.wgpuRenderBundleEncoderSetBindGroup(@handle, index, NativeResource.checked_handle(bind_group, expected_class: BindGroup), 0, nil)
       end
     end
 
@@ -86,7 +86,7 @@ module WGPU
       raise RenderBundleError, "Encoder already finished" if @finished
 
       size ||= buffer.size - offset
-      Native.wgpuRenderBundleEncoderSetVertexBuffer(@handle, slot, buffer.handle, offset, size)
+      Native.wgpuRenderBundleEncoderSetVertexBuffer(@handle, slot, NativeResource.checked_handle(buffer, expected_class: Buffer), offset, size)
     end
 
     # Binds an index buffer for indexed bundle draws.
@@ -98,7 +98,7 @@ module WGPU
 
       size ||= buffer.size - offset
       format_value = Native::EnumHelper.coerce(Native::IndexFormat, format, name: "index format")
-      Native.wgpuRenderBundleEncoderSetIndexBuffer(@handle, buffer.handle, format_value, offset, size)
+      Native.wgpuRenderBundleEncoderSetIndexBuffer(@handle, NativeResource.checked_handle(buffer, expected_class: Buffer), format_value, offset, size)
     end
 
     # Records a non-indexed draw in the bundle.
@@ -124,7 +124,7 @@ module WGPU
     def draw_indirect(buffer, offset: 0)
       raise RenderBundleError, "Encoder already finished" if @finished
 
-      Native.wgpuRenderBundleEncoderDrawIndirect(@handle, buffer.handle, offset)
+      Native.wgpuRenderBundleEncoderDrawIndirect(@handle, NativeResource.checked_handle(buffer, expected_class: Buffer), offset)
     end
 
     # Records an indexed draw using buffer arguments.
@@ -134,7 +134,7 @@ module WGPU
     def draw_indexed_indirect(buffer, offset: 0)
       raise RenderBundleError, "Encoder already finished" if @finished
 
-      Native.wgpuRenderBundleEncoderDrawIndexedIndirect(@handle, buffer.handle, offset)
+      Native.wgpuRenderBundleEncoderDrawIndexedIndirect(@handle, NativeResource.checked_handle(buffer, expected_class: Buffer), offset)
     end
 
     # Starts a labeled group in GPU debugging tools.

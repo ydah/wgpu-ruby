@@ -29,7 +29,7 @@ module WGPU
       desc[:type] = type_value
       desc[:count] = @count
 
-      @handle = Native.wgpuDeviceCreateQuerySet(device.handle, desc)
+      @handle = Native.wgpuDeviceCreateQuerySet(NativeResource.checked_handle(device, expected_class: Device), desc)
       raise ResourceError, "Failed to create query set" if @handle.null?
     end
 

@@ -80,7 +80,7 @@ module WGPU
         backend || :undefined,
         name: "backend type"
       )
-      options[:compatible_surface] = compatible_surface&.handle
+      options[:compatible_surface] = (compatible_surface && NativeResource.checked_handle(compatible_surface, expected_class: Surface))
 
       callback_info = Native::RequestAdapterCallbackInfo.new
       callback_info[:next_in_chain] = nil
@@ -92,7 +92,7 @@ module WGPU
       callback_token = CallbackKeepalive.retain(instance, callback)
       future =
         begin
-          Native.wgpuInstanceRequestAdapter(instance.handle, options, callback_info)
+          Native.wgpuInstanceRequestAdapter(NativeResource.checked_handle(instance, expected_class: Instance), options, callback_info)
         rescue StandardError
           CallbackKeepalive.release(instance, callback_token)
           raise

@@ -2,7 +2,9 @@
 
 RSpec.describe "public enum validation", :skip_gpu_check do
   let(:pointer) { FFI::Pointer.new(1) }
-  let(:shader) { Struct.new(:handle).new(pointer) }
+  let(:shader) do
+    WGPU::ShaderModule.allocate.tap { |shader| shader.instance_variable_set(:@handle, pointer) }
+  end
 
   cases = {
     "adapter power preference" => lambda do |context|

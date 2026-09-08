@@ -14,7 +14,7 @@ module WGPU
       desc, @pointers = build_descriptor(label:, layout:, compute:)
 
       device.push_error_scope(:validation)
-      @handle = Native.wgpuDeviceCreateComputePipeline(device.handle, desc)
+      @handle = Native.wgpuDeviceCreateComputePipeline(NativeResource.checked_handle(device, expected_class: Device), desc)
       error = device.pop_error_scope
 
       if @handle.null? || (error[:type] && error[:type] != :no_error)
@@ -59,7 +59,7 @@ module WGPU
       DescriptorHelpers.set_label(desc, label, keepalive: @pointers)
       desc[:layout] = normalize_layout(layout)
       desc[:compute][:next_in_chain] = nil
-      desc[:compute][:module] = compute.fetch(:module).handle
+      desc[:compute][:module] = NativeResource.checked_handle(compute.fetch(:module), expected_class: ShaderModule)
       DescriptorHelpers.set_nullable_string_view(
         desc[:compute][:entry_point],
         compute[:entry_point],
@@ -72,7 +72,7 @@ module WGPU
 
     def normalize_layout(layout)
       return nil if layout.nil? || layout == :auto || layout == "auto"
-      layout.handle
+      NativeResource.checked_handle(layout, expected_class: PipelineLayout)
     end
   end
 end

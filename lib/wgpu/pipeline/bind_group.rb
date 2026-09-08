@@ -29,12 +29,12 @@ module WGPU
         desc[:label][:data] = nil
         desc[:label][:length] = 0
       end
-      desc[:layout] = layout.handle
+      desc[:layout] = NativeResource.checked_handle(layout, expected_class: BindGroupLayout)
       desc[:entry_count] = entries_array.size
       desc[:entries] = entries_ptr
 
       device.push_error_scope(:validation)
-      @handle = Native.wgpuDeviceCreateBindGroup(device.handle, desc)
+      @handle = Native.wgpuDeviceCreateBindGroup(NativeResource.checked_handle(device, expected_class: Device), desc)
       error = device.pop_error_scope
 
       if @handle.null? || (error[:type] && error[:type] != :no_error)
@@ -74,7 +74,7 @@ module WGPU
 
       if entry_hash[:buffer]
         buffer = entry_hash[:buffer]
-        entry[:buffer] = buffer.handle
+        entry[:buffer] = NativeResource.checked_handle(buffer, expected_class: Buffer)
         entry[:offset] = entry_hash[:offset] || 0
         entry[:size] = entry_hash[:size] || buffer.size
       else
@@ -84,13 +84,13 @@ module WGPU
       end
 
       if entry_hash[:sampler]
-        entry[:sampler] = entry_hash[:sampler].handle
+        entry[:sampler] = NativeResource.checked_handle(entry_hash[:sampler], expected_class: Sampler)
       else
         entry[:sampler] = nil
       end
 
       if entry_hash[:texture_view]
-        entry[:texture_view] = entry_hash[:texture_view].handle
+        entry[:texture_view] = NativeResource.checked_handle(entry_hash[:texture_view], expected_class: TextureView)
       else
         entry[:texture_view] = nil
       end

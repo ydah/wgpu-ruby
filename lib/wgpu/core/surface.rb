@@ -18,7 +18,7 @@ module WGPU
       desc[:label][:data] = nil
       desc[:label][:length] = 0
 
-      handle = Native.wgpuInstanceCreateSurface(instance.handle, desc)
+      handle = Native.wgpuInstanceCreateSurface(NativeResource.checked_handle(instance, expected_class: Instance), desc)
       raise SurfaceError, "Failed to create surface from Metal layer" if handle.null?
 
       new(handle, instance)
@@ -39,7 +39,7 @@ module WGPU
       desc[:label][:data] = nil
       desc[:label][:length] = 0
 
-      handle = Native.wgpuInstanceCreateSurface(instance.handle, desc)
+      handle = Native.wgpuInstanceCreateSurface(NativeResource.checked_handle(instance, expected_class: Instance), desc)
       raise SurfaceError, "Failed to create surface from Windows HWND" if handle.null?
 
       new(handle, instance)
@@ -60,7 +60,7 @@ module WGPU
       desc[:label][:data] = nil
       desc[:label][:length] = 0
 
-      handle = Native.wgpuInstanceCreateSurface(instance.handle, desc)
+      handle = Native.wgpuInstanceCreateSurface(NativeResource.checked_handle(instance, expected_class: Instance), desc)
       raise SurfaceError, "Failed to create surface from Xlib window" if handle.null?
 
       new(handle, instance)
@@ -81,7 +81,7 @@ module WGPU
       desc[:label][:data] = nil
       desc[:label][:length] = 0
 
-      handle = Native.wgpuInstanceCreateSurface(instance.handle, desc)
+      handle = Native.wgpuInstanceCreateSurface(NativeResource.checked_handle(instance, expected_class: Instance), desc)
       raise SurfaceError, "Failed to create surface from Wayland surface" if handle.null?
 
       new(handle, instance)
@@ -102,7 +102,7 @@ module WGPU
     def configure(device:, format:, usage: :render_attachment, width:, height:, present_mode: :fifo, alpha_mode: :auto, view_formats: [])
       config = Native::SurfaceConfiguration.new
       config[:next_in_chain] = nil
-      config[:device] = device.handle
+      config[:device] = NativeResource.checked_handle(device, expected_class: Device)
       config[:format] = Native::EnumHelper.coerce(Native::TextureFormat, format, name: "surface format")
       config[:usage] = normalize_usage(usage)
       config[:width] = width
@@ -216,7 +216,7 @@ module WGPU
     # @return [Hash]
     def capabilities(adapter)
       caps = Native::SurfaceCapabilities.new
-      Native.wgpuSurfaceGetCapabilities(@handle, adapter.handle, caps)
+      Native.wgpuSurfaceGetCapabilities(@handle, NativeResource.checked_handle(adapter, expected_class: Adapter), caps)
 
       formats = []
       if caps[:format_count] > 0 && !caps[:formats].null?

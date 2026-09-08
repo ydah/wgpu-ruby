@@ -41,7 +41,7 @@ module WGPU
         name: "texture view usage"
       )
 
-      @handle = Native.wgpuTextureCreateView(texture.handle, desc)
+      @handle = Native.wgpuTextureCreateView(NativeResource.checked_handle(texture, expected_class: Texture), desc)
       raise ResourceError, "Failed to create texture view" if @handle.null?
     end
 

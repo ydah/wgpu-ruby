@@ -134,7 +134,7 @@ module WGPU
       callback_token = CallbackKeepalive.retain(adapter, callback)
       future =
         begin
-          Native.wgpuAdapterRequestDevice(adapter.handle, desc, callback_info)
+          Native.wgpuAdapterRequestDevice(NativeResource.checked_handle(adapter, expected_class: Adapter), desc, callback_info)
         rescue StandardError
           CallbackKeepalive.release(adapter, callback_token)
           release_device_callback_keepalive(device_callback_state)

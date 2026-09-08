@@ -182,6 +182,15 @@ module WGPU
   module NativeResource
     GUARDED_METHOD_EXEMPTIONS = [:initialize, :release, :released?, :handle, :label, :inspect].freeze
 
+    # Validates resource arguments before passing their handles to FFI.
+    def self.checked_handle(resource, expected_class:)
+      unless resource.is_a?(expected_class)
+        raise TypeError, "expected #{expected_class}, got #{resource.class}"
+      end
+      resource.send(:ensure_not_released!)
+      resource.handle
+    end
+
     module ClassMethods
       private
 
@@ -283,6 +292,10 @@ module WGPU
     end
 
     private
+
+    def initialize_copy(_source)
+      raise TypeError, "#{self.class} owns a native resource and cannot be copied"
+    end
 
     def attach_device_callback_lifetime(owner)
       lifetime = owner&.instance_variable_get(:@device_callback_lifetime)

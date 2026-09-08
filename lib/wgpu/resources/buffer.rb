@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "monitor"
+
 module WGPU
   class Buffer
     attr_reader :handle, :size, :usage
@@ -22,7 +24,9 @@ module WGPU
       @mapped = mapped_at_creation
       @map_state = mapped_at_creation ? :mapped : :unmapped
       @map_generation = 0
-      @map_state_mutex = Mutex.new
+      @map_state_mutex = Monitor.new
+      @mapped_offset = 0
+      @mapped_size = mapped_at_creation ? size : 0
 
       desc, keepalive = build_descriptor(
         label:,
@@ -33,7 +37,7 @@ module WGPU
       @descriptor_keepalive = keepalive
 
       device.push_error_scope(:validation)
-      @handle = Native.wgpuDeviceCreateBuffer(device.handle, desc)
+      @handle = Native.wgpuDeviceCreateBuffer(NativeResource.checked_handle(device, expected_class: Device), desc)
       error = device.pop_error_scope
       @descriptor_keepalive = nil
 
@@ -52,21 +56,23 @@ module WGPU
       ptr, byte_size = DataTypes.to_pointer(data, type:)
       DataTypes.validate_alignment!(offset, 4, name: "offset")
       DataTypes.validate_alignment!(byte_size, 4, name: "data size")
-      Native.wgpuQueueWriteBuffer(@device.queue.handle, @handle, offset, ptr, byte_size)
+      Native.wgpuQueueWriteBuffer(NativeResource.checked_handle(@device.queue, expected_class: Queue), @handle, offset, ptr, byte_size)
     end
 
     # Returns a writable view of a mapped byte range.
     # @return [BufferMappedRange]
     # @raise [BufferError] if the buffer is not mapped or no range is available
     def mapped_range(offset: 0, size: nil)
-      raise BufferError, "Buffer is not mapped" unless @mapped
+      map_state_mutex.synchronize do
+        raise BufferError, "Buffer is not mapped" unless @mapped
 
-      size ||= @size - offset
-      offset, size = validate_map_range!(offset, size)
-      ptr = Native.wgpuBufferGetMappedRange(@handle, offset, size)
-      raise BufferError, "Failed to get mapped range" if ptr.null?
+        size ||= @size - offset
+        offset, size = validate_mapped_access!(offset, size)
+        ptr = Native.wgpuBufferGetMappedRange(@handle, offset, size)
+        raise BufferError, "Failed to get mapped range" if ptr.null?
 
-      BufferMappedRange.new(ptr, size)
+        BufferMappedRange.new(ptr, size, buffer: self, generation: current_map_generation)
+      end
     end
 
     # Returns a writable view of a mapped byte range.
@@ -78,11 +84,9 @@ module WGPU
     # Unmaps the buffer and invalidates its mapped ranges.
     # @return [void]
     def unmap
-      Native.wgpuBufferUnmap(@handle)
       map_state_mutex.synchronize do
-        @map_generation = current_map_generation + 1
-        @mapped = false
-        @map_state = :unmapped
+        Native.wgpuBufferUnmap(@handle)
+        invalidate_map_state
       end
     end
 
@@ -92,6 +96,7 @@ module WGPU
     # @return [Boolean] true when mapped
     # @raise [BufferError] if mapping fails
     def map_sync(mode, offset: 0, size: nil, timeout: nil)
+      timeout = AsyncWaiter.normalize_timeout(timeout)
       status_holder, _callback_token, future, generation =
         begin_map_request(mode, offset: offset, size: size)
       wait_for_map(status_holder, future, timeout:)
@@ -114,14 +119,16 @@ module WGPU
     # @return [String] mapped bytes
     # @raise [BufferError] if the buffer is not mapped
     def read_mapped_data(offset: 0, size: nil)
-      raise BufferError, "Buffer is not mapped" unless @mapped
+      map_state_mutex.synchronize do
+        raise BufferError, "Buffer is not mapped" unless @mapped
 
-      size ||= @size - offset
-      offset, size = validate_map_range!(offset, size)
-      ptr = Native.wgpuBufferGetConstMappedRange(@handle, offset, size)
-      raise BufferError, "Failed to get mapped range" if ptr.null?
+        size ||= @size - offset
+        offset, size = validate_mapped_access!(offset, size)
+        ptr = Native.wgpuBufferGetConstMappedRange(@handle, offset, size)
+        raise BufferError, "Failed to get mapped range" if ptr.null?
 
-      ptr.read_bytes(size)
+        ptr.read_bytes(size)
+      end
     end
 
     # Reads mapped bytes, optionally decoding typed values.
@@ -137,14 +144,16 @@ module WGPU
     # @param type [Symbol] source element type
     # @return [void]
     def write_mapped(data, offset: 0, type: :f32)
-      raise BufferError, "Buffer is not mapped" unless @mapped
+      map_state_mutex.synchronize do
+        raise BufferError, "Buffer is not mapped" unless @mapped
 
-      ptr, byte_size = DataTypes.to_pointer(data, type:)
-      offset, byte_size = validate_map_range!(offset, byte_size)
-      target = Native.wgpuBufferGetMappedRange(@handle, offset, byte_size)
-      raise BufferError, "Failed to get mapped range" if target.null?
+        ptr, byte_size = DataTypes.to_pointer(data, type:)
+        offset, byte_size = validate_mapped_access!(offset, byte_size)
+        target = Native.wgpuBufferGetMappedRange(@handle, offset, byte_size)
+        raise BufferError, "Failed to get mapped range" if target.null?
 
-      target.put_bytes(0, ptr.read_bytes(byte_size))
+        target.put_bytes(0, ptr.read_bytes(byte_size))
+      end
     end
 
     # Reads mapped bytes as 32-bit floating-point values.
@@ -228,8 +237,10 @@ module WGPU
     # Destroys the buffer's storage.
     # @return [void]
     def destroy
-      Native.wgpuBufferDestroy(@handle)
-      invalidate_map_state
+      map_state_mutex.synchronize do
+        Native.wgpuBufferDestroy(@handle)
+        invalidate_map_state
+      end
     end
 
     # Releases the native buffer handle.
@@ -237,10 +248,12 @@ module WGPU
     # Calling this method more than once has no effect.
     # @return [void]
     def release
-      return if @handle.null?
-      Native.wgpuBufferRelease(@handle)
-      @handle = FFI::Pointer::NULL
-      invalidate_map_state
+      map_state_mutex.synchronize do
+        return if @handle.null?
+        Native.wgpuBufferRelease(@handle)
+        @handle = FFI::Pointer::NULL
+        invalidate_map_state
+      end
     end
 
     private
@@ -263,7 +276,11 @@ module WGPU
 
       status_holder = { done: false, status: nil, message: nil }
       generation = map_state_mutex.synchronize do
+        raise BufferError, "Buffer is already mapped or mapping" if @mapped || @map_state == :pending
+
         @map_generation = current_map_generation + 1
+        @mapped_offset = offset
+        @mapped_size = size
         @map_state = :pending
         @map_generation
       end
@@ -351,7 +368,7 @@ module WGPU
     end
 
     def map_state_mutex
-      @map_state_mutex ||= Mutex.new
+      @map_state_mutex ||= Monitor.new
     end
 
     def normalize_usage(usage)
@@ -361,6 +378,25 @@ module WGPU
     def buffer_error_message(message, label)
       context = label ? " #{label.inspect}" : ""
       "create buffer#{context}: #{message}"
+    end
+
+    def with_mapped_generation(generation)
+      map_state_mutex.synchronize do
+        unless @mapped && !released? && generation == current_map_generation
+          raise BufferError, "Mapped range is no longer valid"
+        end
+
+        yield
+      end
+    end
+
+    def validate_mapped_access!(offset, size)
+      offset, size = validate_map_range!(offset, size)
+      if offset < @mapped_offset || offset + size > @mapped_offset + @mapped_size
+        raise BufferError, "Requested range is outside the current mapping"
+      end
+
+      [offset, size]
     end
 
     def validate_map_range!(offset, size)
@@ -379,9 +415,11 @@ module WGPU
     # Wraps a native mapped memory range.
     # @param pointer [FFI::Pointer] start of mapped memory
     # @param size [Integer] range size in bytes
-    def initialize(pointer, size)
+    def initialize(pointer, size, buffer:, generation:)
       @pointer = pointer
       @size = size
+      @buffer = buffer
+      @generation = generation
     end
 
     # Reads 32-bit floating-point values from the mapped range.
@@ -498,7 +536,7 @@ module WGPU
 
       bytes_to_read = count * byte_size
       validate_byte_length!(bytes_to_read)
-      DataTypes.unpack(@pointer.read_bytes(bytes_to_read), type:)
+      DataTypes.unpack(with_valid_mapping { @pointer.read_bytes(bytes_to_read) }, type:)
     end
 
     # Encodes typed values into the mapped range.
@@ -510,13 +548,13 @@ module WGPU
       bytes = data.is_a?(String) ? data : DataTypes.pack(data, type:)
       raise ArgumentError, "data exceeds mapped range" if bytes.bytesize > @size
 
-      @pointer.put_bytes(0, bytes)
+      with_valid_mapping { @pointer.put_bytes(0, bytes) }
     end
 
     # Returns all bytes in the mapped range.
     # @return [String]
     def read_bytes
-      @pointer.read_bytes(@size)
+      with_valid_mapping { @pointer.read_bytes(@size) }
     end
 
     # Writes bytes at the start of the mapped range.
@@ -524,10 +562,14 @@ module WGPU
     # @return [void]
     def write_bytes(data)
       validate_byte_length!(data.bytesize)
-      @pointer.put_bytes(0, data)
+      with_valid_mapping { @pointer.put_bytes(0, data) }
     end
 
     private
+
+    def with_valid_mapping(&block)
+      @buffer.send(:with_mapped_generation, @generation, &block)
+    end
 
     def validate_byte_length!(byte_length)
       return if byte_length <= @size

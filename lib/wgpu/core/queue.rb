@@ -27,7 +27,7 @@ module WGPU
         raise CommandError, "Command buffer has already been submitted" if buffer.submitted?
       end
 
-      handles = buffers.map(&:handle)
+      handles = buffers.map { |buffer| NativeResource.checked_handle(buffer, expected_class: CommandBuffer) }
       ptr = FFI::MemoryPointer.new(:pointer, handles.size)
       ptr.write_array_of_pointer(handles)
 
@@ -54,7 +54,7 @@ module WGPU
 
       Native.wgpuQueueWriteBuffer(
         @handle,
-        buffer.handle,
+        NativeResource.checked_handle(buffer, expected_class: Buffer),
         buffer_offset,
         data_ptr + data_offset,
         write_size
@@ -71,7 +71,7 @@ module WGPU
       data_ptr, byte_size = DataTypes.to_pointer(data, type:)
 
       dst = Native::ImageCopyTexture.new
-      dst[:texture] = destination[:texture].handle
+      dst[:texture] = NativeResource.checked_handle(destination[:texture], expected_class: Texture)
       dst[:mip_level] = destination[:mip_level] || 0
       dst[:origin][:x] = destination.dig(:origin, :x) || 0
       dst[:origin][:y] = destination.dig(:origin, :y) || 0

@@ -24,7 +24,7 @@ module WGPU
         desc[:label][:length] = 0
       end
 
-      @handle = Native.wgpuDeviceCreateCommandEncoder(device.handle, desc)
+      @handle = Native.wgpuDeviceCreateCommandEncoder(NativeResource.checked_handle(device, expected_class: Device), desc)
       raise CommandError, "Failed to create command encoder" if @handle.null?
     end
 
@@ -86,8 +86,8 @@ module WGPU
       raise CommandError, "Encoder already finished" if @finished
       Native.wgpuCommandEncoderCopyBufferToBuffer(
         @handle,
-        source.handle, source_offset,
-        destination.handle, destination_offset,
+        NativeResource.checked_handle(source, expected_class: Buffer), source_offset,
+        NativeResource.checked_handle(destination, expected_class: Buffer), destination_offset,
         size
       )
     end
@@ -109,10 +109,10 @@ module WGPU
       src[:layout][:offset] = source[:offset] || 0
       src[:layout][:bytes_per_row] = source[:bytes_per_row]
       src[:layout][:rows_per_image] = source[:rows_per_image] || size[:height]
-      src[:buffer] = source[:buffer].handle
+      src[:buffer] = NativeResource.checked_handle(source[:buffer], expected_class: Buffer)
 
       dst = Native::ImageCopyTexture.new
-      dst[:texture] = destination[:texture].handle
+      dst[:texture] = NativeResource.checked_handle(destination[:texture], expected_class: Texture)
       dst[:mip_level] = destination[:mip_level] || 0
       dst[:origin][:x] = destination.dig(:origin, :x) || 0
       dst[:origin][:y] = destination.dig(:origin, :y) || 0
@@ -140,7 +140,7 @@ module WGPU
       size[:depth_or_array_layers] = copy_size[:depth_or_array_layers] || copy_size[2] || 1
 
       src = Native::ImageCopyTexture.new
-      src[:texture] = source[:texture].handle
+      src[:texture] = NativeResource.checked_handle(source[:texture], expected_class: Texture)
       src[:mip_level] = source[:mip_level] || 0
       src[:origin][:x] = source.dig(:origin, :x) || 0
       src[:origin][:y] = source.dig(:origin, :y) || 0
@@ -155,7 +155,7 @@ module WGPU
       dst[:layout][:offset] = destination[:offset] || 0
       dst[:layout][:bytes_per_row] = destination[:bytes_per_row]
       dst[:layout][:rows_per_image] = destination[:rows_per_image] || size[:height]
-      dst[:buffer] = destination[:buffer].handle
+      dst[:buffer] = NativeResource.checked_handle(destination[:buffer], expected_class: Buffer)
 
       Native.wgpuCommandEncoderCopyTextureToBuffer(@handle, src, dst, size)
     end
@@ -169,7 +169,7 @@ module WGPU
       raise CommandError, "Encoder already finished" if @finished
 
       src = Native::ImageCopyTexture.new
-      src[:texture] = source[:texture].handle
+      src[:texture] = NativeResource.checked_handle(source[:texture], expected_class: Texture)
       src[:mip_level] = source[:mip_level] || 0
       src[:origin][:x] = source.dig(:origin, :x) || 0
       src[:origin][:y] = source.dig(:origin, :y) || 0
@@ -181,7 +181,7 @@ module WGPU
       )
 
       dst = Native::ImageCopyTexture.new
-      dst[:texture] = destination[:texture].handle
+      dst[:texture] = NativeResource.checked_handle(destination[:texture], expected_class: Texture)
       dst[:mip_level] = destination[:mip_level] || 0
       dst[:origin][:x] = destination.dig(:origin, :x) || 0
       dst[:origin][:y] = destination.dig(:origin, :y) || 0
@@ -206,10 +206,10 @@ module WGPU
       raise CommandError, "Encoder already finished" if @finished
       Native.wgpuCommandEncoderResolveQuerySet(
         @handle,
-        query_set.handle,
+        NativeResource.checked_handle(query_set, expected_class: QuerySet),
         first_query,
         query_count,
-        destination.handle,
+        NativeResource.checked_handle(destination, expected_class: Buffer),
         destination_offset
       )
     end
@@ -221,8 +221,15 @@ module WGPU
     # @return [void]
     def clear_buffer(buffer, offset: 0, size: nil)
       raise CommandError, "Encoder already finished" if @finished
-      size ||= buffer.size - offset
-      Native.wgpuCommandEncoderClearBuffer(@handle, buffer.handle, offset, size)
+      buffer_handle = NativeResource.checked_handle(buffer, expected_class: Buffer)
+      offset = DataTypes.validate_alignment!(offset, 4, name: "clear offset")
+      size = DataTypes.validate_alignment!(size || buffer.size - offset, 4, name: "clear size")
+      if offset > buffer.size || size > buffer.size - offset
+        raise ArgumentError, "clear range exceeds buffer size"
+      end
+      return if size.zero?
+
+      Native.wgpuCommandEncoderClearBuffer(@handle, buffer_handle, offset, size)
     end
 
     # Writes a GPU timestamp to a query set.
@@ -231,7 +238,7 @@ module WGPU
     # @return [void]
     def write_timestamp(query_set, query_index)
       raise CommandError, "Encoder already finished" if @finished
-      Native.wgpuCommandEncoderWriteTimestamp(@handle, query_set.handle, query_index)
+      Native.wgpuCommandEncoderWriteTimestamp(@handle, NativeResource.checked_handle(query_set, expected_class: QuerySet), query_index)
     end
 
     # Starts a labeled group in GPU debugging tools.
