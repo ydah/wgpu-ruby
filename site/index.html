@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f6f8fb">
+    <meta
+      name="description"
+      content="Native WebGPU compute and graphics for Ruby, powered by wgpu-native."
+    >
+    <link rel="canonical" href="https://ydah.github.io/wgpu-ruby/">
+    <title>WGPU Ruby — WebGPU compute and graphics for Ruby</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <a class="wordmark" href="#main" aria-label="WGPU Ruby home">
+        <span class="wordmark-mark" aria-hidden="true">◆</span>
+        <span>WGPU.rb</span>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a href="#capabilities">Capabilities</a>
+        <a href="#start">Quick start</a>
+        <a href="https://github.com/ydah/wgpu-ruby">GitHub</a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="status"><span aria-hidden="true"></span>Version 1.2.1 available</p>
+          <h1 id="hero-title">Put your GPU to work. From Ruby.</h1>
+          <p class="hero-lede">
+            Native WebGPU compute and graphics through wgpu-native, with a Ruby API
+            built for direct, explicit control.
+          </p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="#start">Run your first compute shader</a>
+            <a class="button button-secondary" href="https://github.com/ydah/wgpu-ruby">View source</a>
+          </div>
+          <dl class="support-list">
+            <div>
+              <dt>Ruby</dt>
+              <dd class="tabular">3.2+</dd>
+            </div>
+            <div>
+              <dt>Systems</dt>
+              <dd>macOS, Linux, Windows</dd>
+            </div>
+            <div>
+              <dt>Backends</dt>
+              <dd>Metal, Vulkan, DirectX 12, OpenGL</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="compute-panel" aria-label="Example GPU compute result">
+          <div class="panel-bar">
+            <span>compute.rb</span>
+            <span class="panel-state"><i aria-hidden="true"></i>completed</span>
+          </div>
+          <div class="pipeline">
+            <div class="pipeline-step">
+              <span class="step-label">Ruby buffer</span>
+              <output>[1, 2, 3, 4]</output>
+            </div>
+            <div class="connector" aria-hidden="true"><span>dispatch</span></div>
+            <pre><code><span class="code-dim">@compute @workgroup_size(4)</span>
+fn main(<span class="code-ruby">id</span>: vec3&lt;u32&gt;) {
+  values[id.x] *= 2u;
+}</code></pre>
+            <div class="connector" aria-hidden="true"><span>read</span></div>
+            <div class="pipeline-step result">
+              <span class="step-label">GPU result</span>
+              <output>[2, 4, 6, 8]</output>
+            </div>
+          </div>
+          <div class="panel-foot">
+            <span>wgpu-native</span>
+            <span class="tabular">4 values · 1 workgroup</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="capabilities" id="capabilities" aria-labelledby="capabilities-title">
+        <div class="section-heading">
+          <h2 id="capabilities-title">One gem, the GPU primitives you expect.</h2>
+          <p>
+            Stay in Ruby while working with the same buffers, shaders, pipelines,
+            and command encoders used across WebGPU.
+          </p>
+        </div>
+        <div class="capability-grid">
+          <article>
+            <svg viewBox="0 0 48 48" aria-hidden="true">
+              <path d="M8 12h32v24H8zM15 19h6v10h-6zm12-3h6v16h-6z"/>
+            </svg>
+            <h3>Compute</h3>
+            <p>Run WGSL kernels for matrix work, image processing, reductions, and custom workloads.</p>
+          </article>
+          <article>
+            <svg viewBox="0 0 48 48" aria-hidden="true">
+              <path d="M24 7 42 39H6L24 7Zm0 11-8 15h16l-8-15Z"/>
+            </svg>
+            <h3>Render</h3>
+            <p>Build render pipelines, textures, bind groups, and surfaces with optional SDL3 windows.</p>
+          </article>
+          <article>
+            <svg viewBox="0 0 48 48" aria-hidden="true">
+              <path d="M14 7h20v7h7v20h-7v7H14v-7H7V14h7V7Zm6 10v14h8V17h-8Z"/>
+            </svg>
+            <h3>Native by default</h3>
+            <p>Install the gem and its matching wgpu-native library is downloaded for your platform.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="quick-start" id="start" aria-labelledby="start-title">
+        <div class="start-copy">
+          <h2 id="start-title">From install to adapter in six lines.</h2>
+          <p>
+            No browser runtime. No graphics framework required for compute. Start with
+            the default adapter, then opt into the controls your workload needs.
+          </p>
+          <a href="https://github.com/ydah/wgpu-ruby/blob/main/docs/getting_started_compute.md">
+            Read the compute guide
+          </a>
+        </div>
+        <div class="code-window">
+          <div class="code-tabs" aria-hidden="true">
+            <span>Terminal</span>
+            <span>Ruby</span>
+          </div>
+          <pre><code><span class="code-comment">$</span> gem install wgpu
+
+<span class="code-ruby">require</span> <span class="code-string">"wgpu"</span>
+
+instance = WGPU::Instance.new
+adapter = instance.request_adapter
+device = adapter.request_device
+
+puts adapter.info[<span class="code-symbol">:device</span>]</code></pre>
+        </div>
+      </section>
+
+      <section class="closing" aria-labelledby="closing-title">
+        <h2 id="closing-title">Ruby has the control flow.<br>The GPU has the throughput.</h2>
+        <div>
+          <p>Explore sixteen runnable examples covering compute, rendering, errors, async mapping, and readback.</p>
+          <a class="button button-primary" href="https://github.com/ydah/wgpu-ruby/tree/main/examples">Explore the examples</a>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <a class="wordmark" href="#main">
+        <span class="wordmark-mark" aria-hidden="true">◆</span>
+        <span>WGPU.rb</span>
+      </a>
+      <p>Open source under Apache-2.0 or MIT.</p>
+      <div>
+        <a href="https://www.rubydoc.info/gems/wgpu">API docs</a>
+        <a href="https://github.com/ydah/wgpu-ruby/releases">Releases</a>
+      </div>
+    </footer>
+  </body>
+</html>
