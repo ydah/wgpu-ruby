@@ -54,7 +54,7 @@ RSpec.describe "wgpu.gemspec", :no_native do
 
     expect(dependencies).to eq(
       "ffi" => "~> 1.15",
-      "rubyzip" => "~> 2.3"
+      "rubyzip" => ">= 2.3, < 4.0"
     )
   end
 
