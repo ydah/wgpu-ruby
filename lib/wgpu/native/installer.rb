@@ -186,7 +186,13 @@ module WGPU
             end
 
             FileUtils.mkdir_p(entry.directory? ? target : File.dirname(target))
-            entry.extract(target) { true } unless entry.directory?
+            next if entry.directory?
+
+            if entry.method(:extract).parameters.include?([:key, :destination_directory])
+              entry.extract(entry.name, destination_directory: destination) { true }
+            else
+              entry.extract(target) { true }
+            end
           end
         end
         true
