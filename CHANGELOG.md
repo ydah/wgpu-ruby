@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 1.2.2 - 2026-09-09
+
+### Fixed
+
+- Invalidate mapped buffer views after unmap, destroy, or release, and check
+  accesses against the actual mapped interval, including after remapping.
+- Reject copies of native resource wrappers and validate resource argument
+  types and release state before passing handles to native code.
+- Validate buffer clear ranges and skip zero-length clears that would panic
+  in the pinned native library.
+- Reject empty error-scope pops, serialize nested scopes per device, start
+  asynchronous pops on the calling thread, and clean up scopes when blocks
+  raise without replacing the original exception.
+- Release native handles after failed resource initialization and free native
+  feature arrays after converting them to Ruby values.
+- Validate timeouts before starting native operations and reclaim adapter
+  and device handles when waiting fails.
+- Accept Array texture extents consistently across creation, copies, writes,
+  and readback through shared descriptor normalization.
+- Distinguish raw Wayland surface pointers from existing WGPU surfaces in
+  `CanvasContext`, with explicit `wl_surface:` and `wgpu_surface:` keys.
+
+### Changed
+
+- Allow rubyzip 3.x alongside 2.x.
+
 ## 1.2.1 - 2026-07-24
 
 ### Added
